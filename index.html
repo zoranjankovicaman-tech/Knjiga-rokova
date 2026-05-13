@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Knjiga Rokova — Aman</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#B86A00">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Knjiga Rokova">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -171,6 +178,10 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 .code-block{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;font-family:monospace;font-size:.68rem;color:var(--text2);overflow-x:auto;white-space:pre;max-height:300px;overflow-y:auto;line-height:1.5;}
 .divider{border:none;border-top:1px solid var(--border2);margin:9px 0;}
 .hidden{display:none!important;}
+.search-wrap{position:relative;margin-bottom:8px;}
+.search-wrap input{padding-left:32px;}
+.search-wrap .s-ico{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:.85rem;pointer-events:none;color:var(--text3);}
+.bulk-active{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important;}
 .online-dot{width:7px;height:7px;border-radius:50%;background:var(--success);display:inline-block;}
 .online-dot.off{background:var(--warn);}
 #cam-overlay{background:rgba(0,0,0,.9);}
@@ -255,6 +266,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
     <span class="online-dot off" id="sync-dot" title="Veza"></span>
     <button class="hbtn" onclick="UI.openExport()">📊 <span>Izvoz</span></button>
     <button class="hbtn" onclick="UI.openBackup()">💾 <span>Backup</span></button>
+    <button class="hbtn ico" id="bulk-btn" onclick="Steps.toggleBulk()" title="Brzi unos">⚡</button>
     <button class="hbtn ico" onclick="UI.toggleTheme()">🌙</button>
     <button class="hbtn ico" onclick="Auth.logout()">🚪</button>
   </div>
@@ -300,6 +312,11 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   <div class="card">
     <div class="card-hdr">📦 Unesene stavke</div>
     <div id="sync-status" class="sync-badge off hidden"><span class="online-dot off" id="sync-dot2"></span><span id="sync-text">Offline</span></div>
+    <div class="search-wrap">
+      <span class="s-ico">🔍</span>
+      <input type="text" id="search-input" placeholder="Pretraži po barkodu..." inputmode="numeric"
+             oninput="List.search(this.value)" autocomplete="off" style="margin-bottom:0">
+    </div>
     <div class="filter-row">
       <button class="fbtn on" onclick="List.filter('all',this)">Sve</button>
       <button class="fbtn" onclick="List.filter('discount',this)">Sniženje</button>
@@ -779,10 +796,32 @@ const Login={
 
 /* ===== WIZARD ===== */
 let cBC='',cDate='';
+let bulkMode=false;
 const Steps={
+  toggleBulk(){
+    bulkMode=!bulkMode;
+    const btn=document.getElementById('bulk-btn');
+    if(btn){btn.classList.toggle('bulk-active',bulkMode);btn.title=bulkMode?'Brzi unos AKTIVAN — klikni za isključivanje':'Brzi unos';}
+    toast(bulkMode?'⚡ Brzi unos uključen — sniženje se preskače':'Brzi unos isključen');
+  },
   go(n){[1,2,3,4].forEach(i=>{document.getElementById('s'+i).classList.toggle('hidden',i!==n);if(i===n)document.getElementById('s'+i).classList.add('anim');const s=document.getElementById('seg'+i);if(s)s.className='step-seg'+(i<n?' done':i===n?' active':'');});},
-  confirmBarcode(){const v=document.getElementById('bc-input').value.trim();if(!v){toast('Unesite barkod!','err');return;}cBC=v;['chip-bc','chip-bc2','chip-bc3'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=v;});document.getElementById('exp-date').value=today();this.go(2);},
-  confirmDate(){const v=document.getElementById('exp-date').value;if(!v){toast('Izaberite datum!','err');return;}cDate=v;['chip-dt','chip-dt2'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=fmtD(v);});this.go(3);},
+  confirmBarcode(){
+    const v=document.getElementById('bc-input').value.trim();if(!v){toast('Unesite barkod!','err');return;}
+    // EAN-13 validacija (upozorenje, ne blokiranje)
+    if(/^[0-9]{13}$/.test(v)){
+      const digits=v.split('').map(Number);
+      const check=digits.slice(0,12).reduce((s,d,i)=>s+(i%2===0?d:d*3),0);
+      const valid=(10-(check%10))%10===digits[12];
+      if(!valid)toast('⚠️ Barkod možda neispravan (EAN-13 checksum greška)','err');
+    }
+    cBC=v;['chip-bc','chip-bc2','chip-bc3'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=v;});
+    document.getElementById('exp-date').value=today();this.go(2);
+  },
+  confirmDate(){
+    const v=document.getElementById('exp-date').value;if(!v){toast('Izaberite datum!','err');return;}
+    cDate=v;['chip-dt','chip-dt2'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=fmtD(v);});
+    if(bulkMode){this._save(false,null);}else{this.go(3);}
+  },
   setDiscount(h){if(!h){this._save(false,null);}else{document.getElementById('disc-days').value='';this.go(4);}},
   confirmDays(){const d=document.getElementById('disc-days').value;if(!d){toast('Izaberite broj dana!','err');return;}this._save(true,parseInt(d));},
     async _save(hd,dd){
@@ -815,16 +854,33 @@ const Steps={
 
 /* ===== LIST & STATS ===== */
 const List={
-  _f:'all',
+  _f:'all', _q:'',
   filter(f,btn){this._f=f;document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');this.render();},
+  search(q){this._q=q.trim().toLowerCase();this.render();},
   render(){
     const t=today();let data=[...items];
+    // Filter po tipu
     if(this._f==='discount')data=data.filter(i=>i.hasDiscount);
     else if(this._f==='today')data=data.filter(i=>i.expiryDate===t);
     else if(this._f==='expired')data=data.filter(i=>i.expiryDate<t);
+    // Filter po pretrazi
+    if(this._q)data=data.filter(i=>i.barcode.toLowerCase().includes(this._q));
     const el=document.getElementById('items-list');if(!el)return;
-    if(!data.length){el.innerHTML='<div class="empty-state"><div class="empty-ico">📦</div>Nema stavki za prikaz</div>';return;}
-    el.innerHTML=data.map(item=>{let cls='item-row';if(item.expiryDate<t)cls+=' expired';else if(item.expiryDate===t)cls+=' expiring';return`<div class="${cls}" onclick="Edit.open('${item.id}')"><div class="item-bc">${esc(item.barcode)}</div><div class="item-dt">${fmtD(item.expiryDate)}</div>${item.hasDiscount?`<span class="badge badge-d">-${item.discountDays}d</span>`:`<span class="badge badge-n">Bez</span>`}</div>`;}).join('');
+    if(!data.length){
+      el.innerHTML='<div class="empty-state"><div class="empty-ico">📦</div>'+(this._q?'Nema rezultata za "'+esc(this._q)+'"':'Nema stavki za prikaz')+'</div>';
+      return;
+    }
+    el.innerHTML=data.map(item=>{
+      let cls='item-row';if(item.expiryDate<t)cls+=' expired';else if(item.expiryDate===t)cls+=' expiring';
+      // Highlight traženog teksta
+      let bc=esc(item.barcode);
+      if(this._q){
+        try{const rx=new RegExp('('+this._q.replace(/[.*+?^${}()|\[\]\\]/g,'\\$&')+')','gi');
+        bc=bc.replace(rx,'<mark style="background:var(--accent-bg);color:var(--accent)">$1</mark>');}
+        catch(e){}
+      }
+      return`<div class="${cls}" onclick="Edit.open('${item.id}')"><div class="item-bc">${bc}</div><div class="item-dt">${fmtD(item.expiryDate)}</div>${item.hasDiscount?`<span class="badge badge-d">-${item.discountDays}d</span>`:`<span class="badge badge-n">Bez</span>`}</div>`;
+    }).join('');
   }
 };
 const Stats={upd(){const t=today();document.getElementById('sn-total').textContent=items.length;document.getElementById('sn-disc').textContent=items.filter(i=>i.hasDiscount).length;document.getElementById('sn-today').textContent=items.filter(i=>i.expiryDate===t).length;}};
@@ -1337,6 +1393,12 @@ window.addEventListener('unhandledrejection',e=>{
 
 function _resumeSession(){
   Undo.loadFromStorage();
+  // PWA Service Worker registracija
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('/Knjiga-rokova/sw.js')
+      .then(reg=>console.log('[SW] Registrovan, scope:',reg.scope))
+      .catch(err=>console.warn('[SW] Registracija neuspela:',err));
+  }
   if(Auth.restore()){
     if(session.type==='super'){showPage('page-super');SuperAdmin.load();}
     else if(session.type==='terrain'){const t=terrains.find(x=>x.id===session.tid);if(t){document.getElementById('ta-name').textContent=t.name;showPage('page-terrain');TerrainAdmin.load();}else showPage('page-login');}

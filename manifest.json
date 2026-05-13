@@ -1,0 +1,16 @@
+{
+  "name": "Knjiga Rokova — Aman",
+  "short_name": "Knjiga Rokova",
+  "description": "Digitalni sistem praćenja rokova trajanja prehrambenih proizvoda",
+  "start_url": "/Knjiga-rokova/",
+  "scope": "/Knjiga-rokova/",
+  "display": "standalone",
+  "background_color": "#FAF5EC",
+  "theme_color": "#B86A00",
+  "orientation": "portrait-primary",
+  "lang": "sr",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
