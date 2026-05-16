@@ -107,7 +107,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 .mt8{margin-top:8px;}.mt12{margin-top:12px;}
 
 /* STATS */
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
 .stats4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
 .stat-box{background:var(--card);border:1px solid var(--border2);border-radius:11px;padding:9px 6px;text-align:center;box-shadow:0 1px 6px var(--shadow);}
 .stat-n{font-family:var(--ff-h);font-size:1.45rem;line-height:1;color:var(--accent);}
@@ -182,6 +182,11 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 .search-wrap input{padding-left:32px;}
 .search-wrap .s-ico{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:.85rem;pointer-events:none;color:var(--text3);}
 .bulk-active{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important;}
+.date-filter-row{display:flex;gap:6px;align-items:center;margin-bottom:8px;}
+.date-filter-row input[type="date"]{flex:1;padding:7px 10px;font-size:.82rem;}
+.date-filter-row .df-clear{padding:7px 10px;background:var(--danger-bg);border:1px solid var(--danger);color:var(--danger);border-radius:8px;cursor:pointer;font-size:.8rem;font-weight:700;white-space:nowrap;}
+.date-filter-row .df-clear:hover{background:var(--danger);color:#fff;}
+.df-active{border:1.5px solid var(--accent)!important;background:var(--accent-bg)!important;}
 .online-dot{width:7px;height:7px;border-radius:50%;background:var(--success);display:inline-block;}
 .online-dot.off{background:var(--warn);}
 #cam-overlay{background:rgba(0,0,0,.9);}
@@ -193,7 +198,127 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 #toast.err{background:var(--danger);color:#fff;}
 @keyframes fadeSlide{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 .anim{animation:fadeSlide .2s ease both;}
+
+/* =====================================================
+   PC LAYOUT — ekrani širi od 900px
+   ===================================================== */
+@media(min-width:900px){
+
+  /* --- Zaglavlje na PC --- */
+  header{height:58px;padding:0 28px;}
+  .htitle{font-size:1.1rem;}
+  .hsub{font-size:.65rem;}
+  .hbtn{height:33px;padding:0 13px;font-size:.76rem;}
+  .hbtn.ico{width:33px;}
+  .hbtn span{display:flex!important;}  /* prikaži tekstove na PC */
+
+  /* --- Login na PC --- */
+  .login-card{max-width:440px;padding:36px 32px;}
+  .login-logo .ico{width:66px;height:66px;font-size:2.4rem;}
+  .login-logo h1{font-size:1.5rem;}
+
+  /* --- Store App — 2-kolone na PC --- */
+  .main{
+    max-width:1240px;
+    display:grid;
+    grid-template-columns:420px 1fr;
+    grid-template-rows:auto 1fr;
+    align-items:start;
+    gap:16px;
+    padding:18px 28px 32px;
+  }
+  /* Wizard — leva kolona, puna visina */
+  .main>*:nth-child(1){grid-column:1;grid-row:1/3;}
+  /* Stats — desno gore */
+  .main>*:nth-child(2){grid-column:2;grid-row:1;}
+  /* Lista — desno dole */
+  .main>*:nth-child(3){grid-column:2;grid-row:2;}
+  /* Lista viša na PC */
+  .list-wrap{max-height:520px;}
+
+  /* --- Admin paneli na PC --- */
+  .adm-main{
+    max-width:1240px;
+    padding:18px 28px 32px;
+  }
+  /* Teren grid — 3 kolone na PC */
+  .trn-grid{grid-template-columns:repeat(3,1fr);gap:14px;}
+  /* Stats 4 — veći na PC */
+  .stats4{gap:14px;}
+  .stat-box{padding:14px 10px;}
+  .stat-n{font-size:1.9rem;}
+  .stat-lbl{font-size:.7rem;}
+
+  /* Stats 4-box u store app na PC */
+  .stats{gap:10px;}
+
+  /* --- Terrain i store kartice na PC --- */
+  .trn-card{padding:16px;}
+  .tc-name{font-size:1.1rem;}
+
+  /* --- Config Manager overlay na PC --- */
+  .modal-wide{max-width:700px;}
+  .modal{max-width:540px;}
+
+  /* --- Admin Export overlay na PC --- */
+  #adm-exp-overlay .modal,
+  #full-bak-overlay .modal{max-width:680px;}
+
+  /* --- Wizard koraci na PC --- */
+  .card{padding:20px 22px 22px;}
+  .card-hdr{font-size:.85rem;}
+
+  /* --- Pretraga i datum filter --- */
+  .search-wrap input{font-size:.95rem;}
+  .date-filter-row input[type="date"]{font-size:.88rem;}
+
+  /* --- Overlay na PC --- */
+  .overlay{align-items:center;}
+
+  /* --- Terrain admin store kartice — 3 po redu --- */
+  #ta-grid.trn-grid{grid-template-columns:repeat(3,1fr);}
+  #sa-grid.trn-grid{grid-template-columns:repeat(3,1fr);}
+}
+
+/* Veoma široki ekrani (1400px+) */
+@media(min-width:1400px){
+  .main{grid-template-columns:460px 1fr;}
+  .adm-main{max-width:1400px;}
+  .trn-grid{grid-template-columns:repeat(4,1fr);}
+  #ta-grid.trn-grid,#sa-grid.trn-grid{grid-template-columns:repeat(4,1fr);}
+}
+
 @media(max-width:480px){.main,.adm-main{padding:8px 8px 16px;}.card{padding:12px 12px 13px;}.trn-grid{grid-template-columns:1fr;}.stats4{grid-template-columns:repeat(2,1fr);}header{padding:0 9px;}.htitle{font-size:.88rem;}.hbtn span{display:none;}.hbtn{padding:0 7px;}}
+
+/* --- PC fine-tune --- */
+@media(min-width:900px){
+  /* Lista — raste do dostupne visine */
+  .main>*:nth-child(3) .list-wrap{max-height:none;height:calc(100vh - 420px);min-height:200px;}
+  /* Terrain kartice — bolji hover */
+  .trn-card{transition:all .22s;}
+  /* Item row veći na PC */
+  .item-row{padding:10px 13px;}
+  .item-bc{font-size:.92rem;}
+  .item-dt{font-size:.82rem;}
+  /* Scrollbar na PC */
+  ::-webkit-scrollbar{width:6px;height:6px;}
+  ::-webkit-scrollbar-track{background:var(--bg2);border-radius:4px;}
+  ::-webkit-scrollbar-thumb{background:var(--accent-border);border-radius:4px;}
+  ::-webkit-scrollbar-thumb:hover{background:var(--accent);}
+  /* Badge veći */
+  .badge{font-size:.7rem;padding:3px 9px;}
+  /* Filter dugmad na PC */
+  .fbtn{padding:5px 14px;font-size:.75rem;}
+  /* Datum filter row na PC */
+  .date-filter-row{gap:10px;}
+  /* Config list na PC */
+  .cfg-list{max-height:480px;}
+  /* Step label veći */
+  .step-label{font-size:.75rem;letter-spacing:1px;}
+  /* Numpad manji na PC (nije potreban veliki) */
+  .numpad{max-width:280px;margin:8px auto;}
+  .nk{padding:10px;}
+}
 </style>
 </head>
 <body>
@@ -308,6 +433,10 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
     <div class="stat-box"><div class="stat-n" id="sn-total">0</div><div class="stat-lbl">Ukupno</div></div>
     <div class="stat-box"><div class="stat-n" id="sn-disc" style="color:var(--warn)">0</div><div class="stat-lbl">Sa snižnjem</div></div>
     <div class="stat-box"><div class="stat-n" id="sn-today" style="color:var(--danger)">0</div><div class="stat-lbl">Ističe danas</div></div>
+    <div class="stat-box" title="Artikli koji ističu sutra">
+      <div class="stat-n" id="sn-tmr" style="color:var(--accent)">0</div>
+      <div class="stat-lbl">Sutra</div>
+    </div>
   </div>
   <div class="card">
     <div class="card-hdr">📦 Unesene stavke</div>
@@ -317,11 +446,16 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
       <input type="text" id="search-input" placeholder="Pretraži po barkodu..." inputmode="numeric"
              oninput="List.search(this.value)" autocomplete="off" style="margin-bottom:0">
     </div>
+    <div class="date-filter-row" id="df-row">
+      <span style="font-size:.8rem;color:var(--text3);white-space:nowrap">📅 Datum:</span>
+      <input type="date" id="date-filter-input" oninput="List.dateFilter(this.value)" title="Filter po datumu isteka ili sniženja">
+      <button class="df-clear hidden" id="df-clear-btn" onclick="List.clearDateFilter()">✕ Ukloni</button>
+    </div>
     <div class="filter-row">
-      <button class="fbtn on" onclick="List.filter('all',this)">Sve</button>
-      <button class="fbtn" onclick="List.filter('discount',this)">Sniženje</button>
-      <button class="fbtn" onclick="List.filter('today',this)">Ističe danas</button>
-      <button class="fbtn" onclick="List.filter('expired',this)">Isteklo</button>
+      <button class="fbtn on" id="fbtn-all" onclick="List.filter('all',this)">Sve</button>
+      <button class="fbtn" id="fbtn-discount" onclick="List.filter('discount',this)">Sniženje</button>
+      <button class="fbtn" id="fbtn-today" onclick="List.filter('today',this)">Ističe danas</button>
+      <button class="fbtn" id="fbtn-expired" onclick="List.filter('expired',this)">Isteklo</button>
     </div>
     <div class="list-wrap" id="items-list"></div>
   </div>
@@ -790,8 +924,28 @@ const Login={
       this._pin='';this._updDots();document.getElementById('login-btn').style.display='none';
     }else{RateLimit.success();}
   },
-  _updDots(){const n=this._expLen();for(let i=0;i<n;i++){const d=document.getElementById('pd'+i);if(d)d.className='dot'+(i<this._pin.length?' filled':'');}},
-  reset(){this._r='';this._pin='';this._tid='';this._sid='';['super','terrain','store'].forEach(x=>{document.getElementById('rb-'+x).classList.remove('sel');document.getElementById('rc-'+x).textContent='';});document.getElementById('lr-terrain').classList.add('hidden');document.getElementById('lr-store').classList.add('hidden');document.getElementById('pin-section').classList.add('hidden');document.getElementById('login-btn').style.display='none';document.getElementById('login-err').textContent='';const c=document.getElementById('pin-dots');if(c)c.innerHTML='';}
+  _updDots(){
+    const n=this._expLen();
+    for(let i=0;i<n;i++){const d=document.getElementById('pd'+i);if(d)d.className='dot'+(i<this._pin.length?' filled':'');}
+    // Ažuriraj reveal ako je vidljiv
+    const rev=document.getElementById('pin-reveal');
+    if(rev&&this._pinVisible){rev.textContent=this._pin;rev.style.display=this._pin?'block':'none';}
+    else if(rev)rev.style.display='none';
+  },
+  _pinVisible:false,
+  togglePinShow(){
+    this._pinVisible=!this._pinVisible;
+    const btn=document.getElementById('pin-show-btn');
+    const rev=document.getElementById('pin-reveal');
+    if(btn)btn.innerHTML=this._pinVisible?'🙈 Sakrij':'👁 Prikaži';
+    if(rev){
+      rev.style.display=this._pinVisible&&this._pin?'block':'none';
+      rev.textContent=this._pin||'';
+    }
+    // Ukljuci/iskljuci dots
+    this._updDots();
+  },
+  reset(){this._r='';this._pin='';this._tid='';this._sid='';this._pinVisible=false;['super','terrain','store'].forEach(x=>{document.getElementById('rb-'+x).classList.remove('sel');document.getElementById('rc-'+x).textContent='';});document.getElementById('lr-terrain').classList.add('hidden');document.getElementById('lr-store').classList.add('hidden');document.getElementById('pin-section').classList.add('hidden');document.getElementById('login-btn').style.display='none';document.getElementById('login-err').textContent='';const c=document.getElementById('pin-dots');if(c)c.innerHTML='';}
 };
 
 /* ===== WIZARD ===== */
@@ -854,15 +1008,40 @@ const Steps={
 
 /* ===== LIST & STATS ===== */
 const List={
-  _f:'all', _q:'',
-  filter(f,btn){this._f=f;document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');this.render();},
+  _f:'all', _q:'', _d:'',
+  filter(f,btn){
+    this._f=f;
+    document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+    this.render();
+  },
   search(q){this._q=q.trim().toLowerCase();this.render();},
+  dateFilter(d){
+    this._d=d;
+    const dfInput=document.getElementById('date-filter-input');
+    const clearBtn=document.getElementById('df-clear-btn');
+    if(dfInput)dfInput.classList.toggle('df-active',!!d);
+    if(clearBtn)clearBtn.classList.toggle('hidden',!d);
+    this.render();
+  },
+  clearDateFilter(){
+    this._d='';
+    const dfInput=document.getElementById('date-filter-input');
+    if(dfInput){dfInput.value='';dfInput.classList.remove('df-active');}
+    const clearBtn=document.getElementById('df-clear-btn');
+    if(clearBtn)clearBtn.classList.add('hidden');
+    this.render();
+  },
   render(){
     const t=today();let data=[...items];
-    // Filter po tipu
-    if(this._f==='discount')data=data.filter(i=>i.hasDiscount);
-    else if(this._f==='today')data=data.filter(i=>i.expiryDate===t);
-    else if(this._f==='expired')data=data.filter(i=>i.expiryDate<t);
+    // Datum filter ima prioritet nad tipskim filterom
+    if(this._d){
+      data=data.filter(i=>i.expiryDate===this._d||(i.hasDiscount&&i.discountDate===this._d));
+    } else {
+      if(this._f==='discount')data=data.filter(i=>i.hasDiscount);
+      else if(this._f==='today')data=data.filter(i=>i.expiryDate===t);
+      else if(this._f==='expired')data=data.filter(i=>i.expiryDate<t);
+    }
     // Filter po pretrazi
     if(this._q)data=data.filter(i=>i.barcode.toLowerCase().includes(this._q));
     const el=document.getElementById('items-list');if(!el)return;
@@ -883,7 +1062,18 @@ const List={
     }).join('');
   }
 };
-const Stats={upd(){const t=today();document.getElementById('sn-total').textContent=items.length;document.getElementById('sn-disc').textContent=items.filter(i=>i.hasDiscount).length;document.getElementById('sn-today').textContent=items.filter(i=>i.expiryDate===t).length;}};
+const Stats={upd(){
+  const t=today(),tmr=tomorrow();
+  document.getElementById('sn-total').textContent=items.length;
+  document.getElementById('sn-disc').textContent=items.filter(i=>i.hasDiscount).length;
+  document.getElementById('sn-today').textContent=items.filter(i=>i.expiryDate===t).length;
+  const tmrEl=document.getElementById('sn-tmr');
+  if(tmrEl){
+    const n=items.filter(i=>i.expiryDate===tmr).length;
+    tmrEl.textContent=n;
+    tmrEl.style.color=n>0?'var(--danger)':'var(--accent)';
+  }
+}};
 
 /* ===== CAMERA ===== */
 const Cam={
@@ -1243,7 +1433,7 @@ const FullBackup={
 /* ===== UI ===== */
 const UI={
   toggleTheme(){const n=document.documentElement.getAttribute('data-theme')==='light'?'dark':'light';document.documentElement.setAttribute('data-theme',n);localStorage.setItem('knjiga-theme',n);document.querySelectorAll('[onclick*="toggleTheme"]').forEach(b=>b.textContent=n==='dark'?'☀️':'🌙');},
-  openExport(){document.getElementById('exp-dp').value=today();document.getElementById('exp-overlay').classList.add('open');},
+  openExport(){document.getElementById('exp-dp').value=tomorrow();document.getElementById('exp-overlay').classList.add('open');},
   openBackup(){document.getElementById('bak-overlay').classList.add('open');},
   openAdminExport(){
     const s=document.getElementById('ae-trn');s.innerHTML='<option value="__all__">Svi tereni</option>';terrains.forEach(t=>{const o=document.createElement('option');o.value=t.id;o.textContent=t.name;s.appendChild(o);});
@@ -1258,6 +1448,7 @@ const UI={
   openEmailScript(){document.getElementById('email-block').textContent=emailScript();document.getElementById('email-overlay').classList.add('open');},
   copyScript(){navigator.clipboard.writeText(emailScript()).then(()=>toast('✓ Kopirano!','ok')).catch(()=>toast('Kopirajte ručno','err'));},
   openFullBackup(){document.getElementById('full-bak-overlay').classList.add('open');},
+
   emailTab(tab){
     document.getElementById('email-tab-script').classList.toggle('hidden',tab!=='script');
     document.getElementById('email-tab-rules').classList.toggle('hidden',tab!=='rules');
