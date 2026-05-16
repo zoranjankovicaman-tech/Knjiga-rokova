@@ -344,6 +344,25 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 .chart-chip{padding:4px 10px;border-radius:20px;font-size:.72rem;font-weight:700;background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent-border);}
 .chart-chip.zero{background:var(--bg3);color:var(--text3);border-color:var(--border);}
 .chart-lbl{font-size:.68rem;color:var(--text3);text-align:center;margin-top:4px;}
+
+/* ===== KONTROLNI MOD ===== */
+.ctrl-active{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important;}
+.ctrl-panel{display:flex;flex-direction:column;gap:10px;}
+.ctrl-search-row{display:flex;gap:7px;}
+.ctrl-result{border-radius:11px;padding:14px;border:2px solid;animation:fadeSlide .2s ease both;}
+.ctrl-result.found{border-color:var(--success);background:rgba(46,125,50,.06);}
+.ctrl-result.notfound{border-color:var(--danger);background:var(--danger-bg);}
+.ctrl-result.empty{border-color:var(--border2);background:var(--bg2);text-align:center;color:var(--text3);padding:24px;}
+.ctrl-result-hdr{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-weight:700;font-size:.88rem;}
+.ctrl-result-hdr.ok{color:var(--success);}
+.ctrl-result-hdr.err{color:var(--danger);}
+.ctrl-item{background:var(--card);border:1px solid var(--border2);border-radius:9px;padding:9px 12px;margin-bottom:6px;display:flex;align-items:center;gap:8px;}
+.ctrl-item.expired{border-color:var(--danger);background:var(--danger-bg);}
+.ctrl-item.expiring{border-color:var(--warn);background:var(--warn-bg);}
+.ctrl-item-main{flex:1;}
+.ctrl-item-date{font-size:.85rem;font-weight:700;color:var(--text);}
+.ctrl-item-sub{font-size:.68rem;color:var(--text3);margin-top:2px;}
+.ctrl-bc{font-family:'Courier New',monospace;font-size:.9rem;font-weight:700;color:var(--accent);background:var(--accent-bg);padding:4px 10px;border-radius:6px;letter-spacing:.05em;word-break:break-all;}
 </style>
 </head>
 <body>
@@ -416,6 +435,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
     <span class="online-dot off" id="sync-dot" title="Veza"></span>
     <button class="hbtn" onclick="UI.openExport()">📊 <span>Izvoz</span></button>
     <button class="hbtn" onclick="UI.openBackup()">💾 <span>Backup</span></button>
+    <button class="hbtn ico" id="ctrl-btn" onclick="CtrlMode.toggle()" title="Kontrola barkoda">🔍</button>
     <button class="hbtn ico" id="bulk-btn" onclick="Steps.toggleBulk()" title="Brzi unos">⚡</button>
     <button class="hbtn ico" onclick="UI.toggleTheme()">🌙</button>
     <button class="hbtn ico" onclick="Auth.logout()">🚪</button>
@@ -423,7 +443,31 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 </header>
 <div class="main">
   <div id="notif-area"></div>
-  <div class="card">
+
+  <!-- KONTROLNI MOD PANEL -->
+  <div id="ctrl-card" class="card hidden">
+    <div class="card-hdr" style="justify-content:space-between">
+      <span>🔍 Kontrola barkoda</span>
+      <button onclick="CtrlMode.toggle()" style="background:none;border:none;cursor:pointer;font-size:.8rem;color:var(--text3);font-family:var(--ff-b)">✕ Zatvori</button>
+    </div>
+    <div class="ctrl-panel">
+      <div class="ctrl-search-row">
+        <input type="text" id="ctrl-input" placeholder="Skeniraj ili unesi barkod..."
+               inputmode="numeric" autocomplete="off" autocorrect="off" autocapitalize="off"
+               oninput="CtrlMode.onInput(this.value)"
+               onkeydown="if(event.key==='Enter')CtrlMode.search(this.value)">
+        <button class="btn-scan" onclick="CtrlMode.openCam()">📷</button>
+      </div>
+      <div id="ctrl-result">
+        <div class="ctrl-result empty">
+          <div style="font-size:1.8rem;margin-bottom:8px">🔍</div>
+          Unesite ili skenirajte barkod za kontrolu
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="wizard-card" class="card">
     <div class="card-hdr">📥 Novi unos artikla</div>
     <div class="steps-row"><div class="step-seg active" id="seg1"></div><div class="step-seg" id="seg2"></div><div class="step-seg" id="seg3"></div><div class="step-seg" id="seg4"></div></div>
     <div id="s1">
@@ -1020,6 +1064,106 @@ const Login={
 
 /* ===== WIZARD ===== */
 let cBC='',cDate='';
+/* ===== KONTROLNI MOD ===== */
+const CtrlMode={
+  _active:false,
+
+  toggle(){
+    this._active=!this._active;
+    const ctrlCard=document.getElementById('ctrl-card');
+    const wizCard=document.getElementById('wizard-card');
+    const btn=document.getElementById('ctrl-btn');
+    if(ctrlCard)ctrlCard.classList.toggle('hidden',!this._active);
+    if(wizCard)wizCard.classList.toggle('hidden',this._active);
+    if(btn)btn.classList.toggle('ctrl-active',this._active);
+    if(this._active){
+      if(bulkMode)Steps.toggleBulk();
+      this.reset();
+      setTimeout(()=>{const i=document.getElementById('ctrl-input');if(i)i.focus();},150);
+    }else{this.reset();}
+  },
+
+  reset(){
+    const inp=document.getElementById('ctrl-input');
+    if(inp)inp.value='';
+    const res=document.getElementById('ctrl-result');
+    if(res)res.innerHTML='<div class="ctrl-result empty"><div style="font-size:1.8rem;margin-bottom:8px">&#128269;</div>Unesite ili skenirajte barkod za kontrolu</div>';
+  },
+
+  onInput(val){
+    if(!val||!val.trim()){this.reset();return;}
+    if(val.trim().length>=3)this.search(val.trim());
+  },
+
+  search(bc){
+    if(!bc)return;
+    const found=items.filter(i=>i.barcode===bc);
+    const partial=found.length===0?items.filter(i=>i.barcode.includes(bc)&&bc.length>=6):[];
+    this.renderResult(bc,found.length>0?found:partial,found.length===0&&partial.length>0);
+  },
+
+  openCam(){
+    const inp=document.getElementById('cam-input');
+    if(inp){inp.value='';inp.click();}
+  },
+
+  onCamCode(code){
+    const inp=document.getElementById('ctrl-input');
+    if(inp){inp.value=code;inp.style.borderColor='var(--success)';setTimeout(()=>inp.style.borderColor='',600);}
+    this.search(code);
+    toast('&#128269; Barkod: '+code);
+  },
+
+  renderResult(bc,found,isPartial){
+    const t=today();
+    const res=document.getElementById('ctrl-result');
+    if(!res)return;
+    let html='';
+    if(found.length===0){
+      html='<div class="ctrl-result notfound">'
+        +'<div class="ctrl-result-hdr err">&#10060; NIJE UNETO u evidenciju</div>'
+        +'<div class="ctrl-bc">'+esc(bc)+'</div>'
+        +'<p style="font-size:.82rem;color:var(--text2);margin:10px 0 12px">Ovaj artikal nije pronađen u evidenciji objekta.</p>'
+        +'<button class="btn btn-primary btn-full" onclick="CtrlMode.addNew(\''+esc(bc)+'\')">&#10133; Dodaj odmah &#8594; unos datuma</button>'
+        +'</div>';
+    }else{
+      const lbl=isPartial
+        ?'&#9888;&#65039; '+found.length+' zapis(a) — parcijalno podudaranje'
+        :'&#9989; UNETO — '+found.length+' zapis(a)';
+      const lcls=isPartial?'err':'ok';
+      const rows=found.sort((a,b)=>a.expiryDate.localeCompare(b.expiryDate)).map(item=>{
+        let cls='ctrl-item';
+        if(item.expiryDate<t)cls+=' expired';else if(item.expiryDate===t)cls+=' expiring';
+        const ico=item.expiryDate<t?'&#128308;':item.expiryDate===t?'&#128992;':'&#128994;';
+        const uT=item.createdAt?'<div class="ctrl-item-sub">&#128336; Uneto: '+fmtDT(item.createdAt)+'</div>':'';
+        return'<div class="'+cls+'">'
+          +'<div class="ctrl-item-main">'
+          +'<div class="ctrl-item-date">'+ico+' Isti&#269;e: '+fmtD(item.expiryDate)+'</div>'
+          +uT
+          +'</div>'
+          +'<div style="flex-shrink:0">'
+          +(item.hasDiscount?'<span class="badge badge-d">-'+item.discountDays+'d</span>':'<span class="badge badge-n">Bez</span>')
+          +'</div></div>';
+      }).join('');
+      html='<div class="ctrl-result found">'
+        +'<div class="ctrl-result-hdr '+lcls+'">'+lbl+'</div>'
+        +'<div class="ctrl-bc" style="margin-bottom:10px">'+esc(found[0].barcode)+'</div>'
+        +rows
+        +'<button class="btn btn-ghost btn-full mt8" onclick="CtrlMode.addNew(\''+esc(found[0].barcode)+'\')">&#10133; Dodaj jo&#353; jedan rok za ovaj artikal</button>'
+        +'</div>';
+    }
+    res.innerHTML=html;
+  },
+
+  addNew(bc){
+    this.toggle();
+    const inp=document.getElementById('bc-input');
+    if(inp)inp.value=bc;
+    Steps.confirmBarcode();
+    toast('Barkod '+bc+' &#8212; izaberite datum isteka');
+  }
+};
+
 let bulkMode=false;
 const Steps={
   toggleBulk(){
@@ -1226,7 +1370,14 @@ const Cam={
       const ok=await ensureQuagga();
       if(!ok){URL.revokeObjectURL(url);document.getElementById('cam-overlay').classList.remove('open');return;}
     }const s=Math.min(1,1200/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);c.getContext('2d').drawImage(img,0,0,c.width,c.height);Quagga.decodeSingle({decoder:{readers:['ean_reader','ean_8_reader','code_128_reader','code_39_reader','upc_reader','upc_e_reader']},locate:true,src:c.toDataURL('image/jpeg',.92)},r=>{URL.revokeObjectURL(url);document.getElementById('cam-overlay').classList.remove('open');r?.codeResult?.code?this._code(r.codeResult.code):toast('Barkod nije prepoznat — unesite ručno.','err');});},
-  _code(c){document.getElementById('cam-overlay').classList.remove('open');const i=document.getElementById('bc-input');i.value=c;i.style.borderColor='var(--success)';setTimeout(()=>i.style.borderColor='',600);toast('✓ Barkod: '+c,'ok');}
+  _code(c){
+    document.getElementById('cam-overlay').classList.remove('open');
+    // Ako je Kontrolni mod aktivan, preusmjeri rezultat
+    if(CtrlMode._active){CtrlMode.onCamCode(c);return;}
+    const i=document.getElementById('bc-input');i.value=c;
+    i.style.borderColor='var(--success)';setTimeout(()=>i.style.borderColor='',600);
+    toast('✓ Barkod: '+c,'ok');
+  }
 };
 
 /* ===== EDIT ===== */
