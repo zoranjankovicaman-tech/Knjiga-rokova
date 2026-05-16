@@ -1654,44 +1654,97 @@ const CfgMgr={
   }
 };
 
-/* ===== ADMIN EXPORT ===== */
-const AE={
-  _t:'expiry',
-  sel(t){this._t=t;['eo','ed','ea'].forEach((x,i)=>document.getElementById('ae-'+x).classList.toggle('on',['expiry','discount','all'][i]===t));document.getElementById('ae-drow').style.display=t==='all'?'none':'block';},
-  onTrn(){const tid=document.getElementById('ae-trn').value;const sel=document.getElementById('ae-str');sel.innerHTML='<option value="__all__">Svi objekti</option>';(tid==='__all__'?stores:stores.filter(s=>s.terrainId===tid)).forEach(s=>{const o=document.createElement('option');o.value=s.id;o.textContent=s.name;sel.appendChild(o);});},
-  async go(){
-    const tid=document.getElementById('ae-trn').value;const sid=document.getElementById('ae-str').value;const date=this._t!=='all'?document.getElementById('ae-dp').value:'';
-    if(this._t!=='all'&&!date){toast('Izaberite datum!','err');return;}
-    let ss=sid!=='__all__'?stores.filter(s=>s.id===sid):(tid!=='__all__'?stores.filter(s=>s.terrainId===tid):stores);
-    const multi=ss.length>1;const allRows=[];
-    for(const s of ss){let si=adminData[s.id]||(await DB.fetch(s.id));if(this._t==='expiry')si=si.filter(i=>i.expiryDate===date);else if(this._t==='discount')si=si.filter(i=>i.hasDiscount&&i.discountDate===date);if(multi)si=si.map(i=>({...i,_s:s.name}));allRows.push(...si);}
-    if(!allRows.length){toast('Nema podataka!','err');return;}
+/* ===== EXPORT CORE — zajednička logika za AE i TE ===== */
+const ExportCore={
+
+  // Prebaci tip (expiry/discount/all) — prefix: 'ae' ili 'te'
+  sel(t, prefix){
+    ['eo','ed','ea'].forEach((x,i)=>
+      document.getElementById(prefix+'-'+x)
+        .classList.toggle('on',['expiry','discount','all'][i]===t)
+    );
+    document.getElementById(prefix+'-drow').style.display=t==='all'?'none':'block';
+  },
+
+  // Dohvati i filtriraj redove za zadati niz prodavnica
+  async fetchRows(ss, type, date){
+    const multi=ss.length>1;
+    const allRows=[];
+    for(const s of ss){
+      let si=adminData[s.id]||(await DB.fetch(s.id));
+      if(type==='expiry')   si=si.filter(i=>i.expiryDate===date);
+      else if(type==='discount') si=si.filter(i=>i.hasDiscount&&i.discountDate===date);
+      if(multi) si=si.map(i=>({...i,_s:s.name}));
+      allRows.push(...si);
+    }
+    return{rows:allRows, multi};
+  },
+
+  // Izgradi zaglavlja i redove Excela
+  buildExcel(allRows, type, multi){
     let h,r;
-    if(this._t==='expiry'){h=multi?['Prodavnica','Barkod','Datum isteka']:['Barkod','Datum isteka'];r=allRows.map(i=>multi?[i._s,i.barcode,fmtD(i.expiryDate)]:[i.barcode,fmtD(i.expiryDate)]);}
-    else if(this._t==='discount'){h=multi?['Prodavnica','Barkod','Datum sniženja','Datum isteka']:['Barkod','Datum sniženja','Datum isteka'];r=allRows.map(i=>multi?[i._s,i.barcode,fmtD(i.discountDate),fmtD(i.expiryDate)]:[i.barcode,fmtD(i.discountDate),fmtD(i.expiryDate)]);}
-    else{h=multi?['Prodavnica','Barkod','Datum isteka','Sniženje']:['Barkod','Datum isteka','Sniženje'];r=allRows.map(i=>multi?[i._s,i.barcode,fmtD(i.expiryDate),i.hasDiscount?'Da':'Ne']:[i.barcode,fmtD(i.expiryDate),i.hasDiscount?'Da':'Ne']);}
-    await xlsxWrite(h,r,`admin_izvoz_${today()}_(${allRows.length}art).xlsx`);UI.cl('adm-exp-overlay');toast(`✓ Izvezeno ${allRows.length} artikala`,'ok');
+    if(type==='expiry'){
+      h=multi?['Prodavnica','Barkod','Datum isteka']:['Barkod','Datum isteka'];
+      r=allRows.map(i=>multi?[i._s,i.barcode,fmtD(i.expiryDate)]:[i.barcode,fmtD(i.expiryDate)]);
+    } else if(type==='discount'){
+      h=multi?['Prodavnica','Barkod','Datum sniženja','Datum isteka']:['Barkod','Datum sniženja','Datum isteka'];
+      r=allRows.map(i=>multi?[i._s,i.barcode,fmtD(i.discountDate),fmtD(i.expiryDate)]:[i.barcode,fmtD(i.discountDate),fmtD(i.expiryDate)]);
+    } else {
+      h=multi?['Prodavnica','Barkod','Datum isteka','Sniženje']:['Barkod','Datum isteka','Sniženje'];
+      r=allRows.map(i=>multi?[i._s,i.barcode,fmtD(i.expiryDate),i.hasDiscount?'Da':'Ne']:[i.barcode,fmtD(i.expiryDate),i.hasDiscount?'Da':'Ne']);
+    }
+    return{h,r};
   }
 };
 
-/* ===== TERRAIN EXPORT ===== */
-const TE={
+/* ===== ADMIN EXPORT — koristi ExportCore ===== */
+const AE={
   _t:'expiry',
-  sel(t){this._t=t;['eo','ed','ea'].forEach((x,i)=>document.getElementById('te-'+x).classList.toggle('on',['expiry','discount','all'][i]===t));document.getElementById('te-drow').style.display=t==='all'?'none':'block';},
+  sel(t){this._t=t; ExportCore.sel(t,'ae');},
+  onTrn(){
+    const tid=document.getElementById('ae-trn').value;
+    const sel=document.getElementById('ae-str');
+    sel.innerHTML='<option value="__all__">Svi objekti</option>';
+    (tid==='__all__'?stores:stores.filter(s=>s.terrainId===tid))
+      .forEach(s=>{const o=document.createElement('option');o.value=s.id;o.textContent=s.name;sel.appendChild(o);});
+  },
   async go(){
-    const sid=document.getElementById('te-str').value;const date=this._t!=='all'?document.getElementById('te-dp').value:'';
+    const tid=document.getElementById('ae-trn').value;
+    const sid=document.getElementById('ae-str').value;
+    const date=this._t!=='all'?document.getElementById('ae-dp').value:'';
     if(this._t!=='all'&&!date){toast('Izaberite datum!','err');return;}
-    const ss=sid==='__all__'?stores.filter(s=>s.terrainId===session.tid):stores.filter(s=>s.id===sid);
-    const multi=ss.length>1;const allRows=[];
-    for(const s of ss){let si=adminData[s.id]||(await DB.fetch(s.id));if(this._t==='expiry')si=si.filter(i=>i.expiryDate===date);else if(this._t==='discount')si=si.filter(i=>i.hasDiscount&&i.discountDate===date);if(multi)si=si.map(i=>({...i,_s:s.name}));allRows.push(...si);}
-    if(!allRows.length){toast('Nema podataka!','err');return;}
-    let h,r;
-    if(this._t==='expiry'){h=multi?['Prodavnica','Barkod','Datum isteka']:['Barkod','Datum isteka'];r=allRows.map(i=>multi?[i._s,i.barcode,fmtD(i.expiryDate)]:[i.barcode,fmtD(i.expiryDate)]);}
-    else if(this._t==='discount'){h=multi?['Prodavnica','Barkod','Datum sniženja','Datum isteka']:['Barkod','Datum sniženja','Datum isteka'];r=allRows.map(i=>multi?[i._s,i.barcode,fmtD(i.discountDate),fmtD(i.expiryDate)]:[i.barcode,fmtD(i.discountDate),fmtD(i.expiryDate)]);}
-    else{h=multi?['Prodavnica','Barkod','Datum isteka']:['Barkod','Datum isteka'];r=allRows.map(i=>multi?[i._s,i.barcode,fmtD(i.expiryDate)]:[i.barcode,fmtD(i.expiryDate)]);}
-    await xlsxWrite(h,r,`teren_${session.tname||''}_${today()}_(${allRows.length}art).xlsx`);UI.cl('trn-exp-overlay');toast(`✓ Izvezeno ${allRows.length}`,'ok');
+    const ss=sid!=='__all__'
+      ?stores.filter(s=>s.id===sid)
+      :(tid!=='__all__'?stores.filter(s=>s.terrainId===tid):stores);
+    const{rows,multi}=await ExportCore.fetchRows(ss,this._t,date);
+    if(!rows.length){toast('Nema podataka!','err');return;}
+    const{h,r}=ExportCore.buildExcel(rows,this._t,multi);
+    await xlsxWrite(h,r,`admin_izvoz_${today()}_(${rows.length}art).xlsx`);
+    UI.cl('adm-exp-overlay');
+    toast(`✓ Izvezeno ${rows.length} artikala`,'ok');
   }
 };
+
+/* ===== TERRAIN EXPORT — koristi ExportCore ===== */
+const TE={
+  _t:'expiry',
+  sel(t){this._t=t; ExportCore.sel(t,'te');},
+  async go(){
+    const sid=document.getElementById('te-str').value;
+    const date=this._t!=='all'?document.getElementById('te-dp').value:'';
+    if(this._t!=='all'&&!date){toast('Izaberite datum!','err');return;}
+    const ss=sid==='__all__'
+      ?stores.filter(s=>s.terrainId===session.tid)
+      :stores.filter(s=>s.id===sid);
+    const{rows,multi}=await ExportCore.fetchRows(ss,this._t,date);
+    if(!rows.length){toast('Nema podataka!','err');return;}
+    const{h,r}=ExportCore.buildExcel(rows,this._t,multi);
+    await xlsxWrite(h,r,`teren_${session.tname||''}_${today()}_(${rows.length}art).xlsx`);
+    UI.cl('trn-exp-overlay');
+    toast(`✓ Izvezeno ${rows.length} artikala`,'ok');
+  }
+};
+
 
 /* ===== XLSX ===== */
 async function xlsxWrite(h,rows,fn){
