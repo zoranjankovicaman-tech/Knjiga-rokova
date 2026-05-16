@@ -1,12 +1,11 @@
-// Knjiga Rokova — Service Worker v1
-const CACHE = 'knjiga-rokova-v1';
+// Knjiga Rokova — Service Worker v2
+// Network-first za HTML, cache-first za ostale resurse
+
+const CACHE = 'knjiga-rokova-v2';
 const STATIC = [
-  '/Knjiga-rokova/',
-  '/Knjiga-rokova/index.html',
   '/Knjiga-rokova/manifest.json',
   '/Knjiga-rokova/icon-192.png',
   '/Knjiga-rokova/icon-512.png',
-  'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:wght@300;400;600;700&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
 ];
@@ -15,9 +14,9 @@ self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE)
       .then(c => c.addAll(STATIC.map(u => new Request(u, {mode:'no-cors'}))))
-      .catch(() => {}) // ne blokiraj install ako CDN ne odgovori
+      .catch(() => {})
   );
-  self.skipWaiting();
+  self.skipWaiting(); // odmah aktiviraj novu verziju
 });
 
 self.addEventListener('activate', e => {
@@ -31,14 +30,31 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
-  // Firebase i Google Fonts API — uvek mreža
-  if (url.hostname.includes('firebase') || url.hostname.includes('googleapis.com') && url.pathname.includes('css')) {
+
+  // Firebase — uvek mreža (nikad keš)
+  if (url.hostname.includes('firebase') || url.hostname.includes('firebaseio')) {
+    e.respondWith(fetch(e.request).catch(() => new Response('', {status:503})));
+    return;
+  }
+
+  // index.html — NETWORK FIRST (uvek provjeri novu verziju)
+  if (url.pathname.endsWith('/') || url.pathname.endsWith('index.html')) {
     e.respondWith(
-      fetch(e.request).catch(() => new Response('', {status: 503}))
+      fetch(e.request)
+        .then(res => {
+          if (res && res.ok) {
+            // Sačuvaj novu verziju u keš
+            const clone = res.clone();
+            caches.open(CACHE).then(c => c.put(e.request, clone));
+          }
+          return res;
+        })
+        .catch(() => caches.match(e.request)) // fallback na keš ako nema interneta
     );
     return;
   }
-  // Sve ostalo — keš prvo, pa mreža
+
+  // Sve ostalo — CACHE FIRST (keš, pa mreža)
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
@@ -48,7 +64,7 @@ self.addEventListener('fetch', e => {
           caches.open(CACHE).then(c => c.put(e.request, clone));
         }
         return res;
-      }).catch(() => caches.match('/Knjiga-rokova/'));
+      }).catch(() => null);
     })
   );
 });
