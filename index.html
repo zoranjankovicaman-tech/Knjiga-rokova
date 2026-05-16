@@ -12,8 +12,8 @@
 <meta name="apple-mobile-web-app-title" content="Knjiga Rokova">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- Quagga: lazy load pri skeniranju -->
+<!-- SheetJS: lazy load pri izvozu -->
 <style>
 :root{--ff-h:'Playfair Display',Georgia,serif;--ff-b:'Source Sans 3','Segoe UI',sans-serif;}
 [data-theme="light"]{--bg:#FAF5EC;--bg2:#F2E9D8;--bg3:#EBE0C9;--card:#FFF;--card2:#FDF9F4;--text:#2A1800;--text2:#7A5C3A;--text3:#A88060;--accent:#B86A00;--accent2:#D4880A;--accent-bg:#FFF3E0;--accent-border:#E8B86D;--border:#DDD0B8;--border2:#EAE0CC;--danger:#C0392B;--danger-bg:rgba(192,57,43,.08);--success:#2E7D32;--warn:#E65100;--warn-bg:rgba(230,81,0,.08);--shadow:rgba(120,70,10,.10);--shadow2:rgba(120,70,10,.22);}
@@ -682,6 +682,37 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 <div id="toast"></div>
 
 <script>
+/* ===== LAZY LOADING — biblioteke po potrebi ===== */
+const _scripts={};
+function loadScript(url){
+  if(_scripts[url]) return _scripts[url];
+  _scripts[url]=new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src=url;s.async=true;
+    s.onload=()=>res();
+    s.onerror=()=>rej(new Error('Greška učitavanja: '+url));
+    document.head.appendChild(s);
+  });
+  return _scripts[url];
+}
+
+const QUAGGA_URL='https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js';
+const XLSX_URL='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+
+async function ensureQuagga(){
+  if(window.Quagga) return true;
+  toast('⏳ Učitavam skener...');
+  try{ await loadScript(QUAGGA_URL); return true; }
+  catch(e){ toast('Greška učitavanja skenera — proverite vezu','err'); return false; }
+}
+
+async function ensureXLSX(){
+  if(window.XLSX) return true;
+  toast('⏳ Učitavam Excel modul...');
+  try{ await loadScript(XLSX_URL); return true; }
+  catch(e){ toast('Greška učitavanja Excel modula — proverite vezu','err'); return false; }
+}
+
 /* ===== CONFIG ===== */
 const FB='https://knjiga-rokova-aman-default-rtdb.europe-west1.firebasedatabase.app';
 const SA_PIN='22121963'; // 8-cifreni admin PIN
@@ -1077,15 +1108,33 @@ const Stats={upd(){
 
 /* ===== CAMERA ===== */
 const Cam={
-  open(){document.getElementById('cam-input').value='';document.getElementById('cam-input').click();},
+  open(){
+    document.getElementById('cam-input').value='';
+    document.getElementById('cam-input').click();
+  },
   processImage(ev){
     const f=ev.target.files[0];if(!f)return;
     document.getElementById('cam-status').textContent='Čitanje barkoda...';document.getElementById('cam-overlay').classList.add('open');
     const url=URL.createObjectURL(f);const img=new Image();
-    img.onload=()=>{if('BarcodeDetector' in window){new BarcodeDetector({formats:['ean_13','ean_8','code_128','code_39','upc_a','upc_e','qr_code']}).detect(img).then(cs=>{URL.revokeObjectURL(url);cs.length>0?this._code(cs[0].rawValue):this._quagga(url,img);}).catch(()=>this._quagga(url,img));}else this._quagga(url,img);};
+    img.onload=async()=>{
+      if('BarcodeDetector' in window){
+        try{
+          const cs=await new BarcodeDetector({formats:['ean_13','ean_8','code_128','code_39','upc_a','upc_e','qr_code']}).detect(img);
+          URL.revokeObjectURL(url);
+          cs.length>0?this._code(cs[0].rawValue):this._quagga(url,img);
+        }catch(e){this._quagga(url,img);}
+      }else{
+        this._quagga(url,img);
+      }
+    };
     img.onerror=()=>{URL.revokeObjectURL(url);document.getElementById('cam-overlay').classList.remove('open');toast('Greška slike!','err');};img.src=url;
   },
-  _quagga(url,img){if(typeof Quagga==='undefined'){document.getElementById('cam-overlay').classList.remove('open');toast('Unesite barkod ručno.','err');return;}const s=Math.min(1,1200/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);c.getContext('2d').drawImage(img,0,0,c.width,c.height);Quagga.decodeSingle({decoder:{readers:['ean_reader','ean_8_reader','code_128_reader','code_39_reader','upc_reader','upc_e_reader']},locate:true,src:c.toDataURL('image/jpeg',.92)},r=>{URL.revokeObjectURL(url);document.getElementById('cam-overlay').classList.remove('open');r?.codeResult?.code?this._code(r.codeResult.code):toast('Barkod nije prepoznat — unesite ručno.','err');});},
+  async _quagga(url,img){
+    // Lazy load Quagga ako nije učitan
+    if(typeof Quagga==='undefined'){
+      const ok=await ensureQuagga();
+      if(!ok){URL.revokeObjectURL(url);document.getElementById('cam-overlay').classList.remove('open');return;}
+    }const s=Math.min(1,1200/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);c.getContext('2d').drawImage(img,0,0,c.width,c.height);Quagga.decodeSingle({decoder:{readers:['ean_reader','ean_8_reader','code_128_reader','code_39_reader','upc_reader','upc_e_reader']},locate:true,src:c.toDataURL('image/jpeg',.92)},r=>{URL.revokeObjectURL(url);document.getElementById('cam-overlay').classList.remove('open');r?.codeResult?.code?this._code(r.codeResult.code):toast('Barkod nije prepoznat — unesite ručno.','err');});},
   _code(c){document.getElementById('cam-overlay').classList.remove('open');const i=document.getElementById('bc-input');i.value=c;i.style.borderColor='var(--success)';setTimeout(()=>i.style.borderColor='',600);toast('✓ Barkod: '+c,'ok');}
 };
 
@@ -1102,19 +1151,19 @@ const Edit={
 const Export={
   _t:'expiry',
   sel(t){this._t=t;document.getElementById('eo-exp').classList.toggle('on',t==='expiry');document.getElementById('eo-disc').classList.toggle('on',t==='discount');},
-  go(){
+  async go(){
     const date=document.getElementById('exp-dp').value;if(!date){toast('Izaberite datum!','err');return;}
     const s=stores.find(x=>x.id===session.sid);let rows,headers,fn;
     if(this._t==='expiry'){const f=items.filter(i=>i.expiryDate===date);if(!f.length){toast('Nema artikala!','err');return;}headers=['Barkod','Datum isteka roka'];rows=f.map(i=>[i.barcode,fmtD(i.expiryDate)]);fn=`isteci_${s?.name||''}_${date}.xlsx`;}
     else{const f=items.filter(i=>i.hasDiscount&&i.discountDate===date);if(!f.length){toast('Nema artikala za sniženje!','err');return;}headers=['Barkod','Datum sniženja','Datum isteka roka'];rows=f.map(i=>[i.barcode,fmtD(i.discountDate),fmtD(i.expiryDate)]);fn=`snizenje_${s?.name||''}_${date}.xlsx`;}
-    xlsxWrite(headers,rows,fn);UI.cl('exp-overlay');toast(`✓ Izvezeno ${rows.length} artikala`,'ok');
+    await xlsxWrite(headers,rows,fn);UI.cl('exp-overlay');toast(`✓ Izvezeno ${rows.length} artikala`,'ok');
   }
 };
 
 /* ===== BACKUP ===== */
 const Backup={
   json(){const s=stores.find(x=>x.id===session.sid);const b=new Blob([JSON.stringify(items,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`backup_${s?.name||session.sid}_${today()}.json`;a.click();toast('✓ JSON backup','ok');},
-  excel(){if(!items.length){toast('Nema podataka!','err');return;}const s=stores.find(x=>x.id===session.sid);xlsxWrite(['Barkod','Datum isteka','Sniženje','Datum sniženja','Dana'],items.map(i=>[i.barcode,fmtD(i.expiryDate),i.hasDiscount?'Da':'Ne',i.discountDate?fmtD(i.discountDate):'',i.discountDays||'']),`svi_${s?.name||''}_${today()}.xlsx`);toast(`✓ Izvezeno ${items.length}`,'ok');},
+  async excel(){if(!items.length){toast('Nema podataka!','err');return;}const s=stores.find(x=>x.id===session.sid);await xlsxWrite(['Barkod','Datum isteka','Sniženje','Datum sniženja','Dana'],items.map(i=>[i.barcode,fmtD(i.expiryDate),i.hasDiscount?'Da':'Ne',i.discountDate?fmtD(i.discountDate):'',i.discountDays||'']),`svi_${s?.name||''}_${today()}.xlsx`);toast(`✓ Izvezeno ${items.length}`,'ok');},
   trigImport(){document.getElementById('imp-file').click();},
   async importJSON(ev){
     const f=ev.target.files[0];if(!f)return;
@@ -1252,7 +1301,7 @@ const AE={
     if(this._t==='expiry'){h=multi?['Prodavnica','Barkod','Datum isteka']:['Barkod','Datum isteka'];r=allRows.map(i=>multi?[i._s,i.barcode,fmtD(i.expiryDate)]:[i.barcode,fmtD(i.expiryDate)]);}
     else if(this._t==='discount'){h=multi?['Prodavnica','Barkod','Datum sniženja','Datum isteka']:['Barkod','Datum sniženja','Datum isteka'];r=allRows.map(i=>multi?[i._s,i.barcode,fmtD(i.discountDate),fmtD(i.expiryDate)]:[i.barcode,fmtD(i.discountDate),fmtD(i.expiryDate)]);}
     else{h=multi?['Prodavnica','Barkod','Datum isteka','Sniženje']:['Barkod','Datum isteka','Sniženje'];r=allRows.map(i=>multi?[i._s,i.barcode,fmtD(i.expiryDate),i.hasDiscount?'Da':'Ne']:[i.barcode,fmtD(i.expiryDate),i.hasDiscount?'Da':'Ne']);}
-    xlsxWrite(h,r,`admin_izvoz_${today()}.xlsx`);UI.cl('adm-exp-overlay');toast(`✓ Izvezeno ${allRows.length} artikala`,'ok');
+    await xlsxWrite(h,r,`admin_izvoz_${today()}.xlsx`);UI.cl('adm-exp-overlay');toast(`✓ Izvezeno ${allRows.length} artikala`,'ok');
   }
 };
 
@@ -1271,13 +1320,17 @@ const TE={
     if(this._t==='expiry'){h=multi?['Prodavnica','Barkod','Datum isteka']:['Barkod','Datum isteka'];r=allRows.map(i=>multi?[i._s,i.barcode,fmtD(i.expiryDate)]:[i.barcode,fmtD(i.expiryDate)]);}
     else if(this._t==='discount'){h=multi?['Prodavnica','Barkod','Datum sniženja','Datum isteka']:['Barkod','Datum sniženja','Datum isteka'];r=allRows.map(i=>multi?[i._s,i.barcode,fmtD(i.discountDate),fmtD(i.expiryDate)]:[i.barcode,fmtD(i.discountDate),fmtD(i.expiryDate)]);}
     else{h=multi?['Prodavnica','Barkod','Datum isteka']:['Barkod','Datum isteka'];r=allRows.map(i=>multi?[i._s,i.barcode,fmtD(i.expiryDate)]:[i.barcode,fmtD(i.expiryDate)]);}
-    xlsxWrite(h,r,`teren_${session.tname||''}_${today()}.xlsx`);UI.cl('trn-exp-overlay');toast(`✓ Izvezeno ${allRows.length}`,'ok');
+    await xlsxWrite(h,r,`teren_${session.tname||''}_${today()}.xlsx`);UI.cl('trn-exp-overlay');toast(`✓ Izvezeno ${allRows.length}`,'ok');
   }
 };
 
 /* ===== XLSX ===== */
-function xlsxWrite(h,rows,fn){
-  if(typeof XLSX==='undefined'){toast('Excel nije učitan!','err');return;}
+async function xlsxWrite(h,rows,fn){
+  // Lazy load SheetJS ako nije učitan
+  if(typeof XLSX==='undefined'){
+    const ok=await ensureXLSX();
+    if(!ok) return;
+  }
   const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet([h,...rows]);
   const rng=XLSX.utils.decode_range(ws['!ref']||'A1');
   for(let R=1;R<=rng.e.r;R++){const a=XLSX.utils.encode_cell({r:R,c:0});if(ws[a]){ws[a].t='s';ws[a].z='@';}}
@@ -1379,7 +1432,7 @@ const FullBackup={
         its.forEach(i=>rows.push([tName,s.name,i.barcode,fmtD(i.expiryDate),i.hasDiscount?'Da':'Ne',i.discountDate?fmtD(i.discountDate):'',i.discountDays||'']));
       }
       if(!rows.length){toast('Nema stavki!','err');return;}
-      xlsxWrite(['Teren','Prodavnica','Barkod','Datum isteka','Sniženje','Datum sniženja','Dana'],rows,'knjiga_rokova_SVE_'+today()+'.xlsx');
+      await xlsxWrite(['Teren','Prodavnica','Barkod','Datum isteka','Sniženje','Datum sniženja','Dana'],rows,'knjiga_rokova_SVE_'+today()+'.xlsx');
       toast('✓ Izvezeno '+rows.length+' stavki iz '+allS.length+' prodavnica','ok');
     }catch(e){toast('Greška!','err');console.error(e);}
   },
