@@ -182,6 +182,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 .search-wrap input{padding-left:32px;}
 .search-wrap .s-ico{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:.85rem;pointer-events:none;color:var(--text3);}
 .bulk-active{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important;}
+#plu-btn{display:none;}  /* sakriveno na mobilnom, PC media query ga prikazuje */
 .date-filter-row{display:flex;gap:6px;align-items:center;margin-bottom:8px;}
 .date-filter-row input[type="date"]{flex:1;padding:7px 10px;font-size:.82rem;}
 .date-filter-row .df-clear{padding:7px 10px;background:var(--danger-bg);border:1px solid var(--danger);color:var(--danger);border-radius:8px;cursor:pointer;font-size:.8rem;font-weight:700;white-space:nowrap;}
@@ -270,6 +271,8 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 
   /* Kamera dugme — skriveno na PC (sve rucno) */
   #cam-open-btn{display:none;}
+  /* PLU dugme — vidljivo samo na PC */
+  #plu-btn{display:flex;}
 
   /* Datum unos — PC verzija (dd/mm/yyyy), mobilna skrivena */
   .mobile-date{display:none;}
@@ -528,12 +531,22 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
     <div id="s2" class="hidden anim">
       <div class="item-chip"><span>Barkod:</span><span class="chip-val" id="chip-bc"></span></div>
       <div class="step-label">Korak 2 — Datum isteka roka</div>
-      <input type="date" id="exp-date" class="mobile-date" style="margin-bottom:10px">
-        <input type="text" id="exp-date-pc" class="pc-date" 
-               placeholder="dd/mm/yyyy" maxlength="10" inputmode="numeric"
-               autocomplete="off" style="margin-bottom:10px;display:none;letter-spacing:.05em"
-               oninput="Steps.pcDateInput(this)"
-               onkeydown="if(event.key==='Enter')Steps.confirmDate()">
+      <div class="date-input-wrap" style="margin-bottom:10px">
+          <!-- Mobilni: nativni calendar picker -->
+          <input type="date" id="exp-date" class="mobile-date"
+                 onchange="Steps._syncPCDate(this.value)">
+          <!-- PC: text input dd/mm/yyyy + calendar dugme -->
+          <div class="pc-date" style="display:none;position:relative">
+            <input type="text" id="exp-date-pc" placeholder="dd/mm/yyyy" maxlength="10"
+                   inputmode="numeric" autocomplete="off" style="padding-right:40px;letter-spacing:.06em"
+                   oninput="Steps.pcDateInput(this)"
+                   onkeydown="if(event.key==='Enter')Steps.confirmDate()">
+            <button onclick="Steps.openCalendar()" tabindex="-1"
+                    style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.1rem;padding:4px;color:var(--accent)" title="Otvori kalendar">📅</button>
+            <input type="date" id="exp-date-cal" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;top:0;right:0"
+                   onchange="Steps.onCalendarPick(this.value)">
+          </div>
+        </div>
       <button class="btn btn-primary btn-full" onclick="Steps.confirmDate()">✓ Potvrdi datum</button>
       <button class="btn btn-ghost btn-full mt8" onclick="Steps.go(1)">← Nazad</button>
     </div>
@@ -1313,15 +1326,33 @@ const Steps={
     }
   },
   _syncPCDate(isoDate){
-    // Popuni PC text input iz ISO datuma (yyyy-mm-dd)
     const pc=document.getElementById('exp-date-pc');
     if(pc&&isoDate){
       const [y,m,d]=isoDate.split('-');
       pc.value=`${d}/${m}/${y}`;
       pc.style.borderColor='';
-    } else if(pc){
-      pc.value='';
-    }
+    } else if(pc) pc.value='';
+  },
+  openCalendar(){
+    const cal=document.getElementById('exp-date-cal');
+    if(!cal)return;
+    // Postavi trenutnu vrijednost ako postoji
+    const native=document.getElementById('exp-date');
+    if(native&&native.value)cal.value=native.value;
+    cal.showPicker?.();
+    // Fallback: klikni na hidden input
+    if(!cal.showPicker)cal.click();
+  },
+  onCalendarPick(isoDate){
+    if(!isoDate)return;
+    // Ažuriraj native input
+    const native=document.getElementById('exp-date');
+    if(native)native.value=isoDate;
+    // Ažuriraj PC text input
+    this._syncPCDate(isoDate);
+    // Fokusiraj PC input i označi zeleno
+    const pc=document.getElementById('exp-date-pc');
+    if(pc){pc.focus();pc.style.borderColor='var(--success)';setTimeout(()=>pc.style.borderColor='',1000);}
   },
   setDiscount(h){if(!h){this._save(false,null);}else{document.getElementById('disc-days').value='';this.go(4);}},
   confirmDays(){const d=document.getElementById('disc-days').value;if(!d){toast('Izaberite broj dana!','err');return;}this._save(true,parseInt(d));},
