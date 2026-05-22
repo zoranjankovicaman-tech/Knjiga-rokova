@@ -932,15 +932,16 @@ const CDB={
   },
   async load(){
     const[td,sd]=await Promise.all([FBR.get('terrains'),FBR.get('storeConfig')]);
-    if(td===null&&sd===null)return; // keep cache
-    // Ako tereni null ali keš ima terene — ne brišemo ih (izbjegava re-seed)
-    const safeTd = (td===null && terrains.length>0) ? null : td;
-    this._fromRaw(safeTd!==null?td:null, sd);
-    if(safeTd===null&&td===null) {
-      // Sačuvaj storeConfig ali zadrži terene iz keša
-      if(sd!==null){const s=Object.values(sd);stores=s;this.saveCache();}
+    if(td===null&&sd===null)return; // keep cache — oboje null, zadrži keš
+    // ZAŠTITA: Firebase vratio null za terene ali keš ima terene
+    // → ne briši terene, samo ažuriraj objekte
+    if(td===null && terrains.length>0){
+      if(sd!==null){stores=Object.values(sd).map((s,i)=>({...s}));this.saveCache();}
       return;
     }
+    // Normalan tok — ažuriraj iz Firebase-a
+    this._fromRaw(td,sd);
+    // Seed samo ako je baza potpuno prazna (nikad ne kreira terrain-1 ako ima objekata)
     if(!terrains.length&&!stores.length){await this.seed();return;}
     this.saveCache();
   },
