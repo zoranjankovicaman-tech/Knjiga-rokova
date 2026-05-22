@@ -933,8 +933,15 @@ const CDB={
   async load(){
     const[td,sd]=await Promise.all([FBR.get('terrains'),FBR.get('storeConfig')]);
     if(td===null&&sd===null)return; // keep cache
-    this._fromRaw(td,sd);
-    if(!terrains.length){await this.seed();return;}
+    // Ako tereni null ali keš ima terene — ne brišemo ih (izbjegava re-seed)
+    const safeTd = (td===null && terrains.length>0) ? null : td;
+    this._fromRaw(safeTd!==null?td:null, sd);
+    if(safeTd===null&&td===null) {
+      // Sačuvaj storeConfig ali zadrži terene iz keša
+      if(sd!==null){const s=Object.values(sd);stores=s;this.saveCache();}
+      return;
+    }
+    if(!terrains.length&&!stores.length){await this.seed();return;}
     this.saveCache();
   },
   async seed(){
@@ -1591,8 +1598,33 @@ const Stats={upd(){
 /* ===== CAMERA ===== */
 const Cam={
   open(){
-    document.getElementById('cam-input').value='';
-    document.getElementById('cam-input').click();
+    // Provjeri dostupnost kamere prije nego što kliknemo file input
+    if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
+      navigator.mediaDevices.getUserMedia({video:true})
+        .then(stream=>{
+          // Kamera dostupna — zaustavi stream i otvori input
+          stream.getTracks().forEach(t=>t.stop());
+          document.getElementById('cam-input').value='';
+          document.getElementById('cam-input').click();
+        })
+        .catch(err=>{
+          if(err.name==='NotAllowedError'||err.name==='PermissionDeniedError'){
+            Confirm.show(
+              'Kamera nije dozvoljena',
+              'Aplikacija nema dozvolu za kameru.\n\nRešenje:\n1. Dugi pritisak na Chrome → Informacije o aplikaciji\n2. Dozvole → Kamera → Dozvoli\n3. Ponovo otvorite aplikaciju\n\nIli unesite barkod ručno sa tastature.',
+              ()=>{},null,'Razumem','Razumem'
+            );
+          } else if(err.name==='NotFoundError'){
+            toast('Kamera nije pronađena na uređaju','err');
+          } else {
+            toast('Kamera nije dostupna — unesite barkod ručno','err');
+          }
+        });
+    } else {
+      // Stariji browser — direktno klikni, nada se da radi
+      document.getElementById('cam-input').value='';
+      document.getElementById('cam-input').click();
+    }
   },
   processImage(ev){
     const f=ev.target.files[0];if(!f)return;
