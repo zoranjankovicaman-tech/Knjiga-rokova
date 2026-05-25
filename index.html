@@ -547,6 +547,10 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
     </div>
     <div id="s2" class="hidden anim">
       <div class="item-chip"><span>Barkod:</span><span class="chip-val" id="chip-bc"></span></div>
+      <div id="s2-art-info" style="display:none;background:var(--accent-bg);border:1.5px solid var(--accent-border);border-radius:9px;padding:8px 12px;margin-bottom:8px">
+        <div style="font-weight:700;font-size:.85rem;color:var(--accent)" id="s2-art-name"></div>
+        <div style="font-size:.72rem;color:var(--text3);margin-top:2px" id="s2-art-code"></div>
+      </div>
       <div class="step-label">Korak 2 — Datum isteka roka</div>
       <div class="date-input-wrap" style="margin-bottom:10px">
           <!-- Mobilni: nativni calendar picker -->
@@ -1261,8 +1265,11 @@ const CtrlMode={
         if(item.expiryDate<t)cls+=' expired';else if(item.expiryDate===t)cls+=' expiring';
         const ico=item.expiryDate<t?'&#128308;':item.expiryDate===t?'&#128992;':'&#128994;';
         const uT=item.createdAt?'<div class="ctrl-item-sub">&#128336; Uneto: '+fmtDT(item.createdAt)+'</div>':'';
+        const artI=ArtDB.lookup(item.barcode);
+        const artLine=artI?'<div class="ctrl-item-sub" style="color:var(--accent);font-weight:600">&#128230; '+esc(artI.name)+(artI.code?' &middot; <span style="color:var(--text3)">'+esc(artI.code)+'</span>':'')+'</div>':'';
         return'<div class="'+cls+'">'
           +'<div class="ctrl-item-main">'
+          +artLine
           +'<div class="ctrl-item-date">'+ico+' Isti&#269;e: '+fmtD(item.expiryDate)+'</div>'
           +uT
           +'</div>'
@@ -1272,7 +1279,8 @@ const CtrlMode={
       }).join('');
       html='<div class="ctrl-result found">'
         +'<div class="ctrl-result-hdr '+lcls+'">'+lbl+'</div>'
-        +'<div class="ctrl-bc" style="margin-bottom:10px">'+esc(found[0].barcode)+'</div>'
+        +'<div class="ctrl-bc" style="margin-bottom:6px">'+esc(found[0].barcode)+'</div>'
+        +(()=>{const a=ArtDB.lookup(found[0].barcode);return a?'<div style="font-size:.82rem;font-weight:700;color:var(--accent);margin-bottom:10px">&#128230; '+esc(a.name)+(a.code?' &middot; <span style="color:var(--text3)">'+esc(a.code)+'</span>':'')+'</div>':'';})()
         +rows
         +'<button class="btn btn-ghost btn-full mt8" onclick="CtrlMode.addNew(\''+esc(found[0].barcode)+'\')">&#10133; Dodaj jo&#353; jedan rok za ovaj artikal</button>'
         +'</div>';
@@ -1345,6 +1353,18 @@ const Steps={
     }
     cBC=v;['chip-bc','chip-bc2','chip-bc3'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=v;});
     ArtDB.showLookup(v);
+    // Prikaži naziv u koraku 2
+    const _artS2=ArtDB.lookup(v);
+    const _s2info=document.getElementById('s2-art-info');
+    if(_s2info){
+      if(_artS2&&_artS2.name){
+        document.getElementById('s2-art-name').textContent='\u{1F4E6} '+_artS2.name;
+        document.getElementById('s2-art-code').textContent=_artS2.code?'Šifra: '+_artS2.code:'';
+        _s2info.style.display='block';
+      } else {
+        _s2info.style.display='none';
+      }
+    }
     const _td=today();document.getElementById('exp-date').value=_td;this.initPCDate(_td);this.go(2);
   },
   confirmDate(){
@@ -1515,7 +1535,8 @@ const Steps={
       DB.sl(session.sid,items);List.render();Stats.upd();
       return;
     }
-    document.getElementById('bc-input').value='';cBC='';cDate='';this.go(1);setTimeout(()=>document.getElementById('bc-input').focus(),100);
+    document.getElementById('bc-input').value='';
+    const _r=document.getElementById('s2-art-info');if(_r)_r.style.display='none';cBC='';cDate='';this.go(1);setTimeout(()=>document.getElementById('bc-input').focus(),100);
   }
 };
 
