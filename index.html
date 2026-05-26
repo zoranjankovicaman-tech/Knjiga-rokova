@@ -426,6 +426,14 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 .art-stats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
 .art-chip{padding:4px 12px;border-radius:20px;font-size:.72rem;font-weight:700;background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent-border);}
 .art-item-sub{font-size:.65rem;color:var(--text3);margin-top:1px;}
+
+/* ===== KATEGORIJE ===== */
+.cat-table{width:100%;border-collapse:separate;border-spacing:0;margin-top:8px;}
+.cat-table th{background:var(--accent);color:#fff;padding:7px 10px;font-size:.72rem;text-align:left;}
+.cat-table td{border-bottom:1px solid var(--border2);padding:7px 10px;font-size:.82rem;}
+.cat-table tr:hover td{background:var(--accent-bg);}
+.cat-chip{display:inline-block;padding:2px 8px;border-radius:12px;font-size:.68rem;font-weight:700;background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent-border);margin-right:4px;}
+.art-unit{font-size:.68rem;color:var(--text3);font-weight:600;margin-left:4px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:1px 5px;}
 </style>
 </head>
 <body>
@@ -628,6 +636,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
     <button class="hbtn" onclick="SuperAdmin.refresh()">🔄 <span>Osveži</span></button>
     <button class="hbtn" id="sa-undo-btn" onclick="Undo.prompt()" style="display:none;background:var(--danger-bg);border-color:var(--danger);color:var(--danger)">↩️ <span>Poništi</span></button>
     <button class="hbtn" onclick="ArtDB.openPanel()">📚 <span>Artikli</span></button>
+    <button class="hbtn" onclick="CatDB.openPanel()">🏷️ <span>Kategorije</span></button>
     <button class="hbtn" onclick="UI.openAdminExport()">📊 <span>Izvoz</span></button>
     <button class="hbtn" onclick="UI.openEmailScript()">📧 <span>Email</span></button>
     <button class="hbtn" onclick="UI.openFullBackup()">🗄️ <span>Backup</span></button>
@@ -684,6 +693,40 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 
 <!-- OVERLAYS -->
 <input type="file" id="cam-input" accept="image/*" capture="environment" style="display:none" onchange="Cam.processImage(event)">
+
+<!-- KATEGORIJE OVERLAY -->
+<div id="cat-overlay" class="overlay" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal-wide" style="max-height:90vh;display:flex;flex-direction:column">
+    <div class="modal-title">🏷️ Upravljanje kategorijama</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="CatDB.showAdd()">+ Dodaj kategoriju</button>
+      <button class="btn btn-primary" onclick="CatDB.triggerImport()">&#128229; Import Excel</button>
+      <button class="btn btn-ghost" onclick="CatDB.refresh()">&#128260; Osvježi</button>
+      <input type="file" id="cat-import-file" accept=".xlsx,.xls" style="display:none" onchange="CatDB.importExcel(this)">
+    </div>
+    <div id="cat-import-status" style="margin-bottom:8px;font-size:.78rem;color:var(--text3);min-height:16px"></div>
+    <!-- Forma za dodavanje/izmjenu -->
+    <div id="cat-form" style="display:none;background:var(--accent-bg);border:1.5px solid var(--accent-border);border-radius:10px;padding:12px;margin-bottom:12px">
+      <div style="font-weight:700;font-size:.82rem;color:var(--accent);margin-bottom:8px" id="cat-form-title">Nova kategorija</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+        <input type="text" id="cat-code-inp" placeholder="Šifra (npr. 10)" style="width:100px" maxlength="10">
+        <input type="text" id="cat-name-inp" placeholder="Naziv kategorije" style="flex:1;min-width:160px">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="CatDB.saveForm()">💾 Sačuvaj</button>
+        <button class="btn btn-ghost" onclick="CatDB.hideForm()">Otkaži</button>
+      </div>
+    </div>
+    <!-- Tabela -->
+    <div style="flex:1;overflow-y:auto;max-height:400px">
+      <table class="cat-table">
+        <thead><tr><th>Šifra</th><th>Naziv kategorije</th><th style="width:80px">Akcija</th></tr></thead>
+        <tbody id="cat-tbody"><tr><td colspan="3" style="text-align:center;color:var(--text3);padding:20px">Učitavam...</td></tr></tbody>
+      </table>
+    </div>
+    <button class="btn btn-ghost btn-full mt8" onclick="document.getElementById('cat-overlay').classList.remove('open')">Zatvori</button>
+  </div>
+</div>
 <div id="art-overlay" class="overlay" onclick="if(event.target===this)this.classList.remove('open')">
   <div class="modal-wide" style="max-height:90vh;display:flex;flex-direction:column">
     <div class="modal-title">&#128218; Baza artikala</div>
@@ -1620,7 +1663,7 @@ const List={
       return`<div class="${cls}" onclick="Edit.open('${item.id}')">
         <div style="flex:1;min-width:0">
           <div class="item-bc">${bc}</div>
-          ${artInfo?`<div class="art-item-sub">&#128230; ${artInfo.name}${artInfo.code?' &middot; '+artInfo.code:''}</div>`:''}
+          ${artInfo?`<div class="art-item-sub">&#128230; ${artInfo.name}${artInfo.code?' &middot; '+artInfo.code:''}${artInfo.unit?`<span class="art-unit">${artInfo.unit}</span>`:''}</div>`:''}
           ${unosT?`<div style="font-size:.64rem;color:var(--text3);margin-top:1px">${unosT}</div>`:''}
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">
@@ -1799,6 +1842,163 @@ const Export={
   }
 };
 
+/* ===== BAZA KATEGORIJA — CatDB ===== */
+const CatDB={
+  _data:{},      // {"10":{name:"Mleko..."}, "21":{name:"Meso..."}}
+  _loaded:false,
+  _CACHE_KEY:'knjiga-cat-cache',
+  _editCode:null,
+
+  lookup(code){
+    if(!code)return null;
+    return this._data[String(code)]||null;
+  },
+
+  getName(code){
+    const c=this.lookup(code);
+    return c?c.name:'Kategorija '+code;
+  },
+
+  loadCache(){
+    try{
+      const raw=localStorage.getItem(this._CACHE_KEY);
+      if(!raw)return false;
+      const {data,ts}=JSON.parse(raw);
+      if(Date.now()-ts>24*60*60*1000)return false;
+      this._data=data||{};
+      this._loaded=true;
+      return true;
+    }catch(e){return false;}
+  },
+
+  async refresh(silent=false){
+    try{
+      const d=await FBR.get('categories');
+      if(d){
+        this._data=d;
+        this._loaded=true;
+        localStorage.setItem(this._CACHE_KEY,JSON.stringify({data:d,ts:Date.now()}));
+      }
+      if(!silent)this._renderTable();
+    }catch(e){if(!silent)toast('Greška kategorija: '+e.message,'err');}
+  },
+
+  openPanel(){
+    document.getElementById('cat-overlay').classList.add('open');
+    if(!this._loaded)this.refresh();
+    else this._renderTable();
+  },
+
+  showAdd(){
+    this._editCode=null;
+    document.getElementById('cat-form-title').textContent='Nova kategorija';
+    document.getElementById('cat-code-inp').value='';
+    document.getElementById('cat-code-inp').disabled=false;
+    document.getElementById('cat-name-inp').value='';
+    document.getElementById('cat-form').style.display='block';
+    document.getElementById('cat-code-inp').focus();
+  },
+
+  showEdit(code){
+    const cat=this._data[code];if(!cat)return;
+    this._editCode=code;
+    document.getElementById('cat-form-title').textContent='Izmjena: '+code;
+    document.getElementById('cat-code-inp').value=code;
+    document.getElementById('cat-code-inp').disabled=true;
+    document.getElementById('cat-name-inp').value=cat.name||'';
+    document.getElementById('cat-form').style.display='block';
+    document.getElementById('cat-name-inp').focus();
+  },
+
+  hideForm(){
+    document.getElementById('cat-form').style.display='none';
+    this._editCode=null;
+  },
+
+  async saveForm(){
+    const code=document.getElementById('cat-code-inp').value.trim();
+    const name=document.getElementById('cat-name-inp').value.trim();
+    if(!code||!name){toast('Unesite šifru i naziv','err');return;}
+    try{
+      await FBR.set('categories/'+code,{name});
+      this._data[code]={name};
+      this._loaded=true;
+      localStorage.setItem(this._CACHE_KEY,JSON.stringify({data:this._data,ts:Date.now()}));
+      this.hideForm();
+      this._renderTable();
+      toast('✓ Kategorija sačuvana','ok');
+    }catch(e){toast('Greška: '+e.message,'err');}
+  },
+
+  async deletecat(code){
+    if(!confirm('Obrisati kategoriju '+code+'?'))return;
+    try{
+      await FBR.del('categories/'+code);
+      delete this._data[code];
+      localStorage.setItem(this._CACHE_KEY,JSON.stringify({data:this._data,ts:Date.now()}));
+      this._renderTable();
+      toast('✓ Kategorija obrisana','ok');
+    }catch(e){toast('Greška: '+e.message,'err');}
+  },
+
+  triggerImport(){document.getElementById('cat-import-file').click();},
+
+  async importExcel(input){
+    const file=input.files[0];if(!file)return;
+    const status=document.getElementById('cat-import-status');
+    if(status)status.textContent='Učitavam...';
+    try{
+      await ensureXLSX();
+      const buf=await file.arrayBuffer();
+      const wb=XLSX.read(buf,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+      let added=0,updated=0,skipped=0;
+      const batch={};
+      // Čitanje po nazivu ILI po poziciji (A=prva kolona, B=druga)
+      const keys=rows.length>0?Object.keys(rows[0]):[];
+      const colA=keys[0]||'';const colB=keys[1]||'';
+      rows.forEach(row=>{
+        const code=String(row['Robna grupa (Kategorija)']||row['Kategorija']||row['Kat']||row['code']||row[colA]||'').trim();
+        const name=String(row['Naziv']||row['name']||row[colB]||'').trim();
+        if(!code||!name||code===colA){skipped++;return;} // preskoči header red
+        if(this._data[code]){updated++;}else{added++;}
+        batch[code]={name};
+      });
+      // Merge sa postojećim
+      const merged={...this._data,...batch};
+      await FBR.set('categories',merged);
+      this._data=merged;
+      this._loaded=true;
+      localStorage.setItem(this._CACHE_KEY,JSON.stringify({data:merged,ts:Date.now()}));
+      this._renderTable();
+      const msg=`✓ Import: ${added} novih, ${updated} ažuriranih, ${skipped} preskočenih`;
+      if(status)status.textContent=msg;
+      toast(msg,'ok');
+    }catch(e){
+      if(status)status.textContent='Greška: '+e.message;
+      toast('Greška: '+e.message,'err');
+    }
+    input.value='';
+  },
+
+  _renderTable(){
+    const tbody=document.getElementById('cat-tbody');
+    if(!tbody)return;
+    const entries=Object.entries(this._data).sort((a,b)=>Number(a[0])-Number(b[0]));
+    if(!entries.length){
+      tbody.innerHTML='<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:16px">Nema kategorija</td></tr>';
+      return;
+    }
+    tbody.innerHTML=entries.map(([code,cat])=>`<tr>
+      <td><span class="cat-chip">${esc(code)}</span></td>
+      <td>${esc(cat.name||'')}</td>
+      <td><button class="btn btn-ghost" style="padding:3px 8px;font-size:.72rem" onclick="CatDB.showEdit('${esc(code)}')">✏️</button>
+          <button class="btn" style="padding:3px 8px;font-size:.72rem;background:var(--err-bg);color:var(--err)" onclick="CatDB.deletecat('${esc(code)}')">🗑️</button></td>
+    </tr>`).join('');
+  }
+};
+
 /* ===== BAZA ARTIKALA — ArtDB ===== */
 const ArtDB={
   _data:{},     // {barcode: {name, code}}
@@ -1902,9 +2102,14 @@ const ArtDB={
         const bc=String(row['EAN Barkod']||row['Barkod']||row['barcode']||'').trim();
         const name=String(row['Naziv artikla']||row['Naziv']||row['name']||'').trim();
         const code=String(row['Stara šifra artikla']||row['Šifra']||row['code']||'').trim();
+        const unit=String(row['JME']||row['Jed. mere']||row['unit']||'').trim();
+        const category=String(row['Kategorija']||row['Kat']||row['category']||'').trim();
         if(!bc||!name){skipped++;return;}
         if(this._data[bc]){updated++;} else {added++;}
-        batch[bc]={name,code};
+        const art={name,code};
+        if(unit)art.unit=unit;
+        if(category)art.category=category;
+        batch[bc]=art;
       });
       // Batch upiši u Firebase
       await FBR.set('articles',{...this._data,...batch});
@@ -2668,6 +2873,7 @@ function _resumeSession(){
   Undo.loadFromStorage();
   // Učitaj bazu artikala iz keša, pa osvježi iz Firebase u pozadini
   ArtDB.loadCache(); // Koristi keš ako postoji (instant)
+  CatDB.loadCache(); // Učitaj kategorije
   // Uvijek osvježi iz Firebase u pozadini (2s delay da se UI učita)
   setTimeout(()=>ArtDB.refreshFromFirebase(true).catch(()=>{}), 2500);
   // PWA Service Worker - samo na GitHub Pages originu
