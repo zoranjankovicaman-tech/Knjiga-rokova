@@ -1671,10 +1671,15 @@ const List={
     }
     // Filter po pretrazi
     if(this._q)data=data.filter(i=>i.barcode.toLowerCase().includes(this._q));
-    // U SVE modu bez filtera — prikaži zadnjih 50 (performanse za velike liste)
+    // Sortiraj od najnovijeg prema najstarijem (po vremenu unosa)
+    data.sort((a,b)=>{
+      const ta=a.createdAt||'';const tb=b.createdAt||'';
+      return tb.localeCompare(ta);
+    });
+    // U SVE modu bez filtera — prikaži prvih 50 (najnoviji unosi)
     const totalCount=data.length;
     const limited=(!this._d&&this._f==='all'&&!this._q&&data.length>50);
-    if(limited)data=data.slice(-50); // zadnjih 50 (najnoviji unosi)
+    if(limited)data=data.slice(0,50); // prvih 50 nakon sortiranja = najnoviji
     const el=document.getElementById('items-list');if(!el)return;
     if(!data.length){
       el.innerHTML='<div class="empty-state"><div class="empty-ico">📦</div>'+(this._q?'Nema rezultata za "'+esc(this._q)+'"':'Nema stavki za prikaz')+'</div>';
@@ -2915,70 +2920,241 @@ const UI={
 };
 
 /* ===== EMAIL SCRIPT ===== */
-function emailScript(){return`// Knjiga Rokova — Automatski email izvještaji
-// Dinamički čita objekte iz Firebase
-// Pokrenuti: svaki dan u 06:00
+function emailScript(){return`// ═══════════════════════════════════════════════════════════════
+// KNJIGA ROKOVA — Jutarnji izvještaji (Google Apps Script)
+// Format: po uzoru na PDF izvještaj (kategorije, nazivi, JME)
+// Okidač: svaki dan u 06:00
+// ═══════════════════════════════════════════════════════════════
 
 const FIREBASE_URL = '${FB}';
 
+// ── Glavni entrypoint ────────────────────────────────────────
 function sendDailyReports() {
   const tmrw = getTomorrow();
-  Logger.log('Slanje za: ' + tmrw);
-  const res = UrlFetchApp.fetch(FIREBASE_URL + '/storeConfig.json', { muteHttpExceptions: true });
-  if (res.getResponseCode() !== 200) { Logger.log('Greška čitanja'); return; }
-  const data = JSON.parse(res.getContentText());
-  if (!data) { Logger.log('Nema konfiguracije'); return; }
-  Object.values(data).forEach(store => {
+  Logger.log('=== Jutarnji izvještaj za: ' + tmrw + ' ===');
+
+  // Učitaj konfiguraciju, artikle i kategorije jednom (batch)
+  const cfgRes  = fbGet('/storeConfig.json');
+  const artRes  = fbGet('/articles.json');
+  const catRes  = fbGet('/categories.json');
+
+  if (!cfgRes) { Logger.log('GREŠKA: nema konfiguracije'); return; }
+
+  const articles   = artRes  || {};   // { "barcode": { name, code, unit, category } }
+  const categories = catRes  || {};   // { "10": { name: "Mleko..." }, ... }
+
+  let sent = 0, skipped = 0;
+  Object.values(cfgRes).forEach(store => {
     try {
-      const all = getItems(store.id);
-      const exp = all.filter(i => i.expiryDate === tmrw);
+      const all  = getItems(store.id);
+      const exp  = all.filter(i => i.expiryDate === tmrw);
       const disc = all.filter(i => i.hasDiscount && i.discountDate === tmrw);
-      if (!exp.length && !disc.length) { Logger.log(store.name + ': nema stavki'); return; }
-      sendEmail(store, tmrw, exp, disc);
-      Logger.log(store.name + ': poslan (' + exp.length + ' isteka, ' + disc.length + ' sniženja)');
-    } catch(e) { Logger.log('GREŠKA ' + store.name + ': ' + e.message); }
+      if (!exp.length && !disc.length) { skipped++; return; }
+      sendEmail(store, tmrw, exp, disc, articles, categories);
+      Logger.log('✓ ' + store.name + ': ' + exp.length + ' isteka, ' + disc.length + ' sniženja');
+      sent++;
+    } catch(e) {
+      Logger.log('GREŠKA ' + store.name + ': ' + e.message);
+    }
   });
+  Logger.log('=== Završeno: ' + sent + ' poslatih, ' + skipped + ' preskočenih ===');
+}
+
+// ── Firebase helper ──────────────────────────────────────────
+function fbGet(path) {
+  try {
+    const r = UrlFetchApp.fetch(FIREBASE_URL + path, { muteHttpExceptions: true });
+    return r.getResponseCode() === 200 ? JSON.parse(r.getContentText()) : null;
+  } catch(e) { return null; }
 }
 
 function getItems(storeId) {
-  const r = UrlFetchApp.fetch(FIREBASE_URL + '/stores/' + storeId + '/items.json', { muteHttpExceptions: true });
-  if (r.getResponseCode() !== 200) return [];
-  const d = JSON.parse(r.getContentText());
+  const d = fbGet('/stores/' + storeId + '/items.json');
   return d ? Object.values(d) : [];
 }
 
+// ── Datum utils ──────────────────────────────────────────────
 function getTomorrow() {
   const d = new Date(); d.setDate(d.getDate() + 1);
   return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd');
 }
+function fmt(s) {
+  if (!s) return ''; const p = s.split('-'); return p[2]+'.'+p[1]+'.'+p[0]+'.';
+}
 
-function fmt(s) { if (!s) return ''; const p = s.split('-'); return p[2]+'.'+p[1]+'.'+p[0]+'.'; }
+// ── Grupiši stavke po kategoriji (kao u PDF-u) ───────────────
+function groupByCategory(items, articles, categories) {
+  const groups = {};
+  items.forEach(item => {
+    const art      = articles[item.barcode] || null;
+    const catCode  = art ? (art.category || 'BEZ') : 'BEZ';
+    const catName  = catCode !== 'BEZ'
+      ? ((categories[catCode] && categories[catCode].name) || ('Kategorija ' + catCode))
+      : 'Bez kategorije';
+    const sortKey  = catCode === 'BEZ' ? 'ZZZ_BEZ' : String(catCode).padStart(5, '0');
+    if (!groups[sortKey]) groups[sortKey] = { catCode, catName, items: [] };
+    groups[sortKey].items.push({ ...item, _art: art });
+  });
+  return Object.entries(groups)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([, g]) => g);
+}
 
-function sendEmail(store, date, exp, disc) {
-  const subj = '📋 Knjiga Rokova — ' + store.name + ' — ' + fmt(date);
-  let html = '<div style="font-family:Arial,sans-serif;max-width:640px">';
-  html += '<h2 style="color:#B86A00;border-bottom:2px solid #E8B86D;padding-bottom:8px">📋 ' + store.name + '</h2>';
-  html += '<p>Izvještaj za: <strong>' + fmt(date) + '</strong></p>';
-  if (exp.length) {
-    html += '<h3 style="color:#C0392B">🔴 Rok ističe sutra (' + exp.length + ')</h3>';
-    html += '<table border="1" cellpadding="6" style="border-collapse:collapse;width:100%"><tr style="background:#FFF3E0"><th>Barkod</th><th>Datum isteka</th><th>Sniženje</th></tr>';
-    exp.forEach(i => { html += '<tr><td style="font-family:monospace">' + i.barcode + '</td><td>' + fmt(i.expiryDate) + '</td><td>' + (i.hasDiscount ? 'Da (' + i.discountDays + 'd)' : 'Ne') + '</td></tr>'; });
-    html += '</table>';
+// ── HTML komponente ──────────────────────────────────────────
+const CSS = \`
+  body { margin:0; padding:0; background:#fff; }
+  .wrap { font-family:Arial,Helvetica,sans-serif; font-size:10px;
+          max-width:780px; margin:0 auto; color:#2A1800; }
+  .hdr  { background:#B86A00; color:#fff; padding:7px 12px; }
+  .hdr-title { font-size:14px; font-weight:bold; margin:0 0 2px; }
+  .hdr-sub   { font-size:9px; opacity:.85; margin:0; }
+  .section   { padding:0 0 10px; }
+  .sec-title { font-size:11px; font-weight:bold; padding:5px 10px 4px;
+               border-left:4px solid currentColor; margin:10px 0 4px; }
+  .sec-exp   { color:#C0392B; }
+  .sec-disc  { color:#E65100; }
+  .cat-bar   { background:#F5EBD6; font-size:9px; font-weight:bold;
+               padding:3px 10px; color:#5C3A00; border-top:1px solid #DDD0B8; }
+  table      { width:100%; border-collapse:collapse; font-size:9px; }
+  th         { background:#B86A00; color:#fff; padding:3px 5px;
+               font-size:8.5px; text-align:left; white-space:nowrap; }
+  td         { padding:2px 5px; border-bottom:1px solid #EAE0CC;
+               vertical-align:top; }
+  tr.alt     { background:#FFFBF5; }
+  .bc        { font-family:'Courier New',monospace; font-size:8.5px; }
+  .nm        { max-width:220px; }
+  .footer    { font-size:8px; color:#A88060; padding:8px 10px;
+               border-top:1px solid #DDD0B8; margin-top:8px; }
+  @media print {
+    .wrap    { max-width:100%; }
+    .hdr     { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    th       { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .cat-bar { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    tr.alt   { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .footer  { display:none; }
   }
-  if (disc.length) {
-    html += '<h3 style="color:#E65100">🏷️ Za sniženje sutra (' + disc.length + ')</h3>';
-    html += '<table border="1" cellpadding="6" style="border-collapse:collapse;width:100%"><tr style="background:#FFF3E0"><th>Barkod</th><th>Datum sniženja</th><th>Datum isteka</th></tr>';
-    disc.forEach(i => { html += '<tr><td style="font-family:monospace">' + i.barcode + '</td><td>' + fmt(i.discountDate) + '</td><td>' + fmt(i.expiryDate) + '</td></tr>'; });
-    html += '</table>';
+\`;
+
+function secTitle(label, cls, count) {
+  return '<div class="sec-title ' + cls + '">' + label + ' — ' + count + ' artikala</div>';
+}
+
+function catBar(group) {
+  const prefix = group.catCode !== 'BEZ' ? group.catCode + ' — ' : '';
+  return '<div class="cat-bar">' + prefix + group.catName + ' (' + group.items.length + ')</div>';
+}
+
+// Tabela za "Rok ističe" (5 kolona, kao PDF)
+function tableExp(groups) {
+  let html = '';
+  groups.forEach(g => {
+    html += catBar(g);
+    html += '<table><thead><tr>'
+      + '<th style="width:50px">Šifra</th>'
+      + '<th>Naziv artikla</th>'
+      + '<th style="width:30px;text-align:center">JME</th>'
+      + '<th style="width:100px">Barkod</th>'
+      + '<th style="width:55px;text-align:center">Sniženje</th>'
+      + '</tr></thead><tbody>';
+    g.items.forEach((i, idx) => {
+      const art  = i._art;
+      const code = art ? (art.code || '—') : '—';
+      const name = art ? art.name : '<span style="color:#999">Nije u bazi</span>';
+      const unit = art ? (art.unit || '') : '';
+      const disc = i.hasDiscount ? 'Da (' + (i.discountDays||'') + 'd)' : 'Ne';
+      const alt  = idx % 2 === 1 ? ' class="alt"' : '';
+      html += '<tr' + alt + '>'
+        + '<td>' + code + '</td>'
+        + '<td class="nm">' + name + '</td>'
+        + '<td style="text-align:center">' + unit + '</td>'
+        + '<td class="bc">' + i.barcode + '</td>'
+        + '<td style="text-align:center">' + disc + '</td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+  });
+  return html;
+}
+
+// Tabela za "Sniženje" (6 kolona, kao PDF)
+function tableDisc(groups) {
+  let html = '';
+  groups.forEach(g => {
+    html += catBar(g);
+    html += '<table><thead><tr>'
+      + '<th style="width:50px">Šifra</th>'
+      + '<th>Naziv artikla</th>'
+      + '<th style="width:30px;text-align:center">JME</th>'
+      + '<th style="width:100px">Barkod</th>'
+      + '<th style="width:60px;text-align:center">Dat.sniz.</th>'
+      + '<th style="width:60px;text-align:center">Dat.ist.</th>'
+      + '</tr></thead><tbody>';
+    g.items.forEach((i, idx) => {
+      const art  = i._art;
+      const code = art ? (art.code || '—') : '—';
+      const name = art ? art.name : '<span style="color:#999">Nije u bazi</span>';
+      const unit = art ? (art.unit || '') : '';
+      const alt  = idx % 2 === 1 ? ' class="alt"' : '';
+      html += '<tr' + alt + '>'
+        + '<td>' + code + '</td>'
+        + '<td class="nm">' + name + '</td>'
+        + '<td style="text-align:center">' + unit + '</td>'
+        + '<td class="bc">' + i.barcode + '</td>'
+        + '<td style="text-align:center">' + fmt(i.discountDate) + '</td>'
+        + '<td style="text-align:center">' + fmt(i.expiryDate) + '</td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+  });
+  return html;
+}
+
+// ── Slanje email-a ───────────────────────────────────────────
+function sendEmail(store, date, exp, disc, articles, categories) {
+  const subj = 'Knjiga Rokova — ' + store.name + ' — ' + fmt(date);
+
+  const expGroups  = exp.length  ? groupByCategory(exp,  articles, categories) : [];
+  const discGroups = disc.length ? groupByCategory(disc, articles, categories) : [];
+
+  let body = '';
+  body += '<div class="hdr">'
+        + '<p class="hdr-title">KNJIGA ROKOVA — ' + store.name + '</p>'
+        + '<p class="hdr-sub">Izvještaj za: ' + fmt(date)
+        + ' &nbsp;|&nbsp; Generisano: ' + fmt(getToday()) + ' u 06:00</p>'
+        + '</div>';
+
+  body += '<div class="section">';
+
+  if (expGroups.length) {
+    body += secTitle('Rok ističe sutra', 'sec-exp', exp.length);
+    body += tableExp(expGroups);
   }
-  html += '<p style="color:#A88060;font-size:11px;margin-top:16px">Aman maloprodaja — Knjiga Rokova</p></div>';
+
+  if (discGroups.length) {
+    body += secTitle('Sniženje počinje sutra', 'sec-disc', disc.length);
+    body += tableDisc(discGroups);
+  }
+
+  body += '</div>';
+  body += '<div class="footer">Aman maloprodaja — Knjiga Rokova &nbsp;|&nbsp; '
+        + exp.length + ' isteka, ' + disc.length + ' sniženja</div>';
+
+  const html = '<!DOCTYPE html><html><head><meta charset="UTF-8">'
+             + '<style>' + CSS + '</style></head>'
+             + '<body><div class="wrap">' + body + '</div></body></html>';
+
   GmailApp.sendEmail(store.email, subj, '', { htmlBody: html });
 }
 
+function getToday() {
+  return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+}
+
+// ── Okidač ───────────────────────────────────────────────────
 function createTrigger() {
   ScriptApp.getProjectTriggers().forEach(t => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('sendDailyReports').timeBased().atHour(6).everyDays(1).create();
-  Logger.log('Trigger kreiran!');
+  Logger.log('✓ Trigger kreiran — pokreće se svaki dan u 06:00');
 }`;}
 
 /* ===== PAGE NAV ===== */
