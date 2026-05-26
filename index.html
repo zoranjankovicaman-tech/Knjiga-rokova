@@ -764,6 +764,14 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   </div>
   <div class="frow"><label class="flbl">Datum za izvoz</label><input type="date" id="exp-dp"></div>
   <div class="btn-row"><button class="btn btn-primary" style="flex:1" onclick="Export.go()">📥 Preuzmi Excel</button><button class="btn btn-ghost" style="flex:1" onclick="UI.cl('exp-overlay')">Zatvori</button></div>
+  <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border2)">
+    <div style="font-size:.75rem;color:var(--text3);margin-bottom:6px">📄 Izvoz za period (PDF)</div>
+    <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+      <div style="flex:1;min-width:120px"><label class="flbl" style="font-size:.72rem">Od datuma</label><input type="date" id="pdf-date-from"></div>
+      <div style="flex:1;min-width:120px"><label class="flbl" style="font-size:.72rem">Do datuma</label><input type="date" id="pdf-date-to"></div>
+    </div>
+    <button class="btn btn-primary btn-full" onclick="PDFReport.generate()">📄 Generiši PDF izvještaj</button>
+  </div>
 </div>
 </div>
 
@@ -933,12 +941,24 @@ function loadScript(url){
 
 const QUAGGA_URL='https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js';
 const XLSX_URL='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+const JSPDF_URL='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+const JSPDF_AT_URL='https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js';
 
 async function ensureQuagga(){
   if(window.Quagga) return true;
   toast('⏳ Učitavam skener...');
   try{ await loadScript(QUAGGA_URL); return true; }
   catch(e){ toast('Greška učitavanja skenera — proverite vezu','err'); return false; }
+}
+
+async function ensureJsPDF(){
+  if(window.jspdf&&window.jspdf.jsPDF)return true;
+  toast('⏳ Učitavam PDF modul...');
+  try{
+    await loadScript(JSPDF_URL);
+    await loadScript(JSPDF_AT_URL);
+    return true;
+  }catch(e){toast('Greška PDF modula — proverite vezu','err');return false;}
 }
 
 async function ensureXLSX(){
@@ -1787,6 +1807,118 @@ const Edit={
   togDays(){document.getElementById('ed-drow').classList.toggle('hidden',document.getElementById('ed-disc').value!=='1');},
   async save(){const bc=document.getElementById('ed-bc').value.trim(),ed=document.getElementById('ed-date').value;if(!bc||!ed){toast('Popunite polja!','err');return;}const hd=document.getElementById('ed-disc').value==='1';const dd=hd?parseInt(document.getElementById('ed-days').value):null;await DB.upd(session.sid,this._id,{barcode:bc,expiryDate:ed,hasDiscount:hd,discountDays:dd,discountDate:hd?subDays(ed,dd):null});UI.cl('edit-overlay');toast('✓ Izmjena sačuvana','ok');},
   async del(){Confirm.show('Obrisati ovaj artikal?',async()=>{await DB.rm(session.sid,this._id);UI.cl('edit-overlay');toast('Artikal obrisan','ok');},'🗑️ Obriši');}
+};
+
+/* ===== PDF IZVJEŠTAJ — PDFReport ===== */
+const PDFReport={
+  _groupByCategory(items){
+    const groups={};
+    items.forEach(item=>{
+      const art=ArtDB.lookup(item.barcode);
+      const catCode=art?(art.category||'BEZ'):'BEZ';
+      const catName=catCode!=='BEZ'?(CatDB.getName(catCode)||'Kategorija '+catCode):'Bez kategorije';
+      const catKey=catCode==='BEZ'?'ZZZ_BEZ':catCode.padStart(5,'0');
+      if(!groups[catKey])groups[catKey]={catCode,catName,items:[]};
+      groups[catKey].items.push({...item,_art:art});
+    });
+    return Object.entries(groups)
+      .sort((a,b)=>a[0].localeCompare(b[0]))
+      .map(([,g])=>g);
+  },
+  _dateRange(from,to){
+    const dates=[];const d=new Date(from);const end=new Date(to);
+    while(d<=end){dates.push(d.toISOString().split('T')[0]);d.setDate(d.getDate()+1);}
+    return dates;
+  },
+  async generate(){
+    const from=document.getElementById('pdf-date-from').value;
+    const to=document.getElementById('pdf-date-to').value;
+    if(!from||!to){toast('Izaberite period od-do','err');return;}
+    if(from>to){toast('Pocetni datum mora biti pre krajnjeg','err');return;}
+    const daysDiff=(new Date(to)-new Date(from))/(1000*60*60*24);
+    if(daysDiff>30){toast('Maksimalan period je 30 dana','err');return;}
+    if(!ArtDB._loaded)await ArtDB.refreshFromFirebase(true).catch(()=>{});
+    if(!CatDB._loaded)await CatDB.refresh(true).catch(()=>{});
+    const ok=await ensureJsPDF();
+    if(!ok)return;
+    toast('Generisujem PDF...');
+    try{
+      const {jsPDF}=window.jspdf;
+      const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+      const BROWN=[184,106,0];const LBROWN=[232,213,176];const CREAM=[255,253,248];
+      const TDARK=[92,58,0];const RED=[192,57,43];const ORANGE=[230,81,0];const GRAY=[130,130,130];
+      const store=stores.find(s=>s.id===session.sid);
+      const storeName=store?store.name:'';
+      const PW=210;const MG=14;const CW=PW-MG*2;
+      let pageNum=1;
+      const addHdr=()=>{
+        doc.setFillColor(...BROWN);doc.rect(0,0,PW,22,'F');
+        doc.setTextColor(255,255,255);doc.setFontSize(13);doc.setFont('helvetica','bold');
+        doc.text('KNJIGA ROKOVA  '+storeName,MG,10);
+        doc.setFontSize(8);doc.setFont('helvetica','normal');
+        doc.text('Period: '+fmtD(from)+' - '+fmtD(to)+'   Generisano: '+fmtD(today()),MG,17);
+        doc.text('Str. '+pageNum,PW-MG,17,{align:'right'});
+      };
+      addHdr();let y=28;
+      const chkPage=(n=20)=>{if(y+n>283){doc.addPage();pageNum++;addHdr();y=28;}};
+      this._dateRange(from,to).forEach(date=>{
+        const dayExp=items.filter(i=>i.expiryDate===date);
+        const dayDisc=items.filter(i=>i.hasDiscount&&i.discountDate===date);
+        chkPage(12);
+        doc.setFillColor(...LBROWN);doc.rect(MG,y,CW,8,'F');
+        doc.setTextColor(...TDARK);doc.setFontSize(11);doc.setFont('helvetica','bold');
+        doc.text(fmtD(date),MG+3,y+5.5);y+=10;
+        if(!dayExp.length&&!dayDisc.length){
+          chkPage(8);doc.setTextColor(...GRAY);doc.setFontSize(9);doc.setFont('helvetica','italic');
+          doc.text('Nema stavki za ovaj dan',MG+4,y+4);y+=9;return;
+        }
+        if(dayExp.length){
+          chkPage(14);doc.setTextColor(...RED);doc.setFontSize(10);doc.setFont('helvetica','bold');
+          doc.text('Rok istice - '+dayExp.length+' artikala',MG,y+4);y+=7;
+          this._groupByCategory(dayExp).forEach(group=>{
+            chkPage(10);doc.setFillColor(245,235,218);doc.rect(MG,y,CW,6,'F');
+            doc.setTextColor(...TDARK);doc.setFontSize(8);doc.setFont('helvetica','bold');
+            doc.text((group.catCode!=='BEZ'?group.catCode+' - ':'')+group.catName,MG+2,y+4);y+=6;
+            const rows=group.items.map(i=>[i._art?i._art.code:'—',i._art?i._art.name:'Nije u bazi',i._art?(i._art.unit||''):'',String(i.barcode),i.hasDiscount?'Da ('+i.discountDays+'d)':'Ne']);
+            chkPage(rows.length*6+8);
+            doc.autoTable({startY:y,margin:{left:MG,right:MG},
+              head:[['Sifra','Naziv artikla','JME','Barkod','Snizenje']],body:rows,
+              theme:'plain',styles:{fontSize:7.5,cellPadding:1.8,textColor:TDARK,lineColor:LBROWN,lineWidth:0.2},
+              headStyles:{fillColor:BROWN,textColor:[255,255,255],fontStyle:'bold',fontSize:7.5},
+              alternateRowStyles:{fillColor:CREAM},
+              columnStyles:{0:{cellWidth:16},1:{cellWidth:68},2:{cellWidth:10,halign:'center'},3:{cellWidth:32,font:'courier'},4:{cellWidth:16,halign:'center'}},
+              didDrawPage:()=>{pageNum++;addHdr();}});
+            y=doc.lastAutoTable.finalY+3;
+          });y+=2;
+        }
+        if(dayDisc.length){
+          chkPage(14);doc.setTextColor(...ORANGE);doc.setFontSize(10);doc.setFont('helvetica','bold');
+          doc.text('Snizenje - '+dayDisc.length+' artikala',MG,y+4);y+=7;
+          this._groupByCategory(dayDisc).forEach(group=>{
+            chkPage(10);doc.setFillColor(245,235,218);doc.rect(MG,y,CW,6,'F');
+            doc.setTextColor(...TDARK);doc.setFontSize(8);doc.setFont('helvetica','bold');
+            doc.text((group.catCode!=='BEZ'?group.catCode+' - ':'')+group.catName,MG+2,y+4);y+=6;
+            const rows=group.items.map(i=>[i._art?i._art.code:'—',i._art?i._art.name:'Nije u bazi',i._art?(i._art.unit||''):'',String(i.barcode),fmtD(i.discountDate),fmtD(i.expiryDate)]);
+            chkPage(rows.length*6+8);
+            doc.autoTable({startY:y,margin:{left:MG,right:MG},
+              head:[['Sifra','Naziv artikla','JME','Barkod','Dat.sniz.','Dat.ist.']],body:rows,
+              theme:'plain',styles:{fontSize:7.5,cellPadding:1.8,textColor:TDARK,lineColor:LBROWN,lineWidth:0.2},
+              headStyles:{fillColor:BROWN,textColor:[255,255,255],fontStyle:'bold',fontSize:7.5},
+              alternateRowStyles:{fillColor:CREAM},
+              columnStyles:{0:{cellWidth:16},1:{cellWidth:58},2:{cellWidth:10,halign:'center'},3:{cellWidth:30,font:'courier'},4:{cellWidth:20,halign:'center'},5:{cellWidth:20,halign:'center'}},
+              didDrawPage:()=>{pageNum++;addHdr();}});
+            y=doc.lastAutoTable.finalY+3;
+          });y+=2;
+        }
+        y+=4;
+      });
+      doc.setTextColor(...GRAY);doc.setFontSize(7);doc.setFont('helvetica','normal');
+      doc.text('Aman maloprodaja - Knjiga Rokova',PW/2,292,{align:'center'});
+      const fn='knjiga_rokova_'+storeName.replace(/\s+/g,'_')+'_'+from+'_'+to+'.pdf';
+      doc.save(fn);
+      toast('PDF preuzet: '+fn,'ok');
+    }catch(e){toast('Greška PDF: '+e.message,'err');console.error(e);}
+  }
 };
 
 /* ===== EXPORT (store) ===== */
@@ -2720,7 +2852,18 @@ const FullBackup={
 /* ===== UI ===== */
 const UI={
   toggleTheme(){const n=document.documentElement.getAttribute('data-theme')==='light'?'dark':'light';document.documentElement.setAttribute('data-theme',n);localStorage.setItem('knjiga-theme',n);document.querySelectorAll('[onclick*="toggleTheme"]').forEach(b=>b.textContent=n==='dark'?'☀️':'🌙');},
-  openExport(){document.getElementById('exp-dp').value=tomorrow();document.getElementById('exp-overlay').classList.add('open');},
+  openExport(){
+    document.getElementById('exp-dp').value=tomorrow();
+    document.getElementById('exp-overlay').classList.add('open');
+    // Postavi PDF datume: od = 7 dana unazad, do = danas
+    const _t=today(),_td=new Date();_td.setDate(_td.getDate()+7);
+    const _f=today();
+    const _pdfTo=_td.toISOString().split('T')[0];
+    const _pfEl=document.getElementById('pdf-date-from');
+    const _ptEl=document.getElementById('pdf-date-to');
+    if(_pfEl&&!_pfEl.value)_pfEl.value=_f;
+    if(_ptEl&&!_ptEl.value)_ptEl.value=_pdfTo;
+  },
   openBackup(){document.getElementById('bak-overlay').classList.add('open');},
   openAdminExport(){
     const s=document.getElementById('ae-trn');s.innerHTML='<option value="__all__">Svi tereni</option>';terrains.forEach(t=>{const o=document.createElement('option');o.value=t.id;o.textContent=t.name;s.appendChild(o);});
@@ -2946,5 +3089,3 @@ function _resumeSession(){
 </div>
 </body>
 </html>
-
- 
