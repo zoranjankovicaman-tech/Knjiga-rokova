@@ -411,6 +411,29 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 .ctrl-item-sub{font-size:.68rem;color:var(--text3);margin-top:2px;}
 .ctrl-bc{font-family:'Courier New',monospace;font-size:.9rem;font-weight:700;color:var(--accent);background:var(--accent-bg);padding:4px 10px;border-radius:6px;letter-spacing:.05em;word-break:break-all;}
 
+/* SA dugmad — mobilni: ikone + prelom u 2 reda */
+@media(max-width:700px){
+  #page-super header{
+    height:auto !important;
+    flex-wrap:wrap;
+    padding:6px 9px !important;
+    gap:4px;
+  }
+  #page-super .hbrand{flex:0 0 auto;}
+  #page-super .hactions{
+    flex:0 0 100%;
+    flex-wrap:wrap;
+    gap:3px;
+    justify-content:flex-start;
+  }
+  #page-super .hactions .hbtn span{display:none !important;}
+  #page-super .hactions .hbtn{
+    padding:0 8px;
+    min-width:34px;
+    height:28px;
+    font-size:.95rem;
+  }
+}
 /* ===== BAZA ARTIKALA ===== */
 .art-found{background:var(--success-bg,#E8F5E9);border:1.5px solid var(--success,#2E7D32);border-radius:9px;padding:8px 12px;margin-top:6px;display:flex;align-items:center;gap:8px;}
 .art-notfound{background:var(--warn-bg);border:1.5px solid var(--warn);border-radius:9px;padding:7px 12px;margin-top:6px;font-size:.78rem;color:var(--warn);}
@@ -638,7 +661,6 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
     <button class="hbtn" onclick="ArtDB.openPanel()">📚 <span>Artikli</span></button>
     <button class="hbtn" onclick="CatDB.openPanel()">🏷️ <span>Kategorije</span></button>
     <button class="hbtn" onclick="UI.openAdminExport()">📊 <span>Izvoz</span></button>
-    <button class="hbtn" onclick="UI.openEmailScript()">📧 <span>Email</span></button>
     <button class="hbtn" onclick="UI.openFullBackup()">🗄️ <span>Backup</span></button>
     <button class="hbtn ico" onclick="UI.toggleTheme()">🌙</button>
     <button class="hbtn ico" onclick="Auth.logout()">🚪</button>
@@ -1849,68 +1871,68 @@ const PDFReport={
       const TDARK=[92,58,0];const RED=[192,57,43];const ORANGE=[230,81,0];const GRAY=[130,130,130];
       const store=stores.find(s=>s.id===session.sid);
       const storeName=store?store.name:'';
-      const PW=210;const MG=14;const CW=PW-MG*2;
+      const PW=210;const MG=10;const CW=PW-MG*2;
       let pageNum=1;
       const addHdr=()=>{
-        doc.setFillColor(...BROWN);doc.rect(0,0,PW,22,'F');
-        doc.setTextColor(255,255,255);doc.setFontSize(13);doc.setFont('helvetica','bold');
-        doc.text('KNJIGA ROKOVA  '+storeName,MG,10);
-        doc.setFontSize(8);doc.setFont('helvetica','normal');
-        doc.text('Period: '+fmtD(from)+' - '+fmtD(to)+'   Generisano: '+fmtD(today()),MG,17);
-        doc.text('Str. '+pageNum,PW-MG,17,{align:'right'});
+        doc.setFillColor(...BROWN);doc.rect(0,0,PW,14,'F');
+        doc.setTextColor(255,255,255);doc.setFontSize(10);doc.setFont('helvetica','bold');
+        doc.text('KNJIGA ROKOVA  '+storeName,MG,6);
+        doc.setFontSize(7);doc.setFont('helvetica','normal');
+        doc.text('Period: '+fmtD(from)+' - '+fmtD(to)+'   Generisano: '+fmtD(today()),MG,11);
+        doc.text('Str. '+pageNum,PW-MG,11,{align:'right'});
       };
-      addHdr();let y=28;
-      const chkPage=(n=20)=>{if(y+n>283){doc.addPage();pageNum++;addHdr();y=28;}};
+      addHdr();let y=17;
+      const chkPage=(n=18)=>{if(y+n>287){doc.addPage();pageNum++;addHdr();y=17;}};
       this._dateRange(from,to).forEach(date=>{
         const dayExp=items.filter(i=>i.expiryDate===date);
         const dayDisc=items.filter(i=>i.hasDiscount&&i.discountDate===date);
         chkPage(12);
-        doc.setFillColor(...LBROWN);doc.rect(MG,y,CW,8,'F');
-        doc.setTextColor(...TDARK);doc.setFontSize(11);doc.setFont('helvetica','bold');
-        doc.text(fmtD(date),MG+3,y+5.5);y+=10;
+        doc.setFillColor(...LBROWN);doc.rect(MG,y,CW,6,'F');
+        doc.setTextColor(...TDARK);doc.setFontSize(10);doc.setFont('helvetica','bold');
+        doc.text(fmtD(date),MG+2,y+4.2);y+=7;
         if(!dayExp.length&&!dayDisc.length){
           chkPage(8);doc.setTextColor(...GRAY);doc.setFontSize(9);doc.setFont('helvetica','italic');
-          doc.text('Nema stavki za ovaj dan',MG+4,y+4);y+=9;return;
+          doc.text('Nema stavki za ovaj dan',MG+3,y+3);y+=6;return;
         }
         if(dayExp.length){
           chkPage(14);doc.setTextColor(...RED);doc.setFontSize(10);doc.setFont('helvetica','bold');
           doc.text('Rok istice - '+dayExp.length+' artikala',MG,y+4);y+=7;
           this._groupByCategory(dayExp).forEach(group=>{
-            chkPage(10);doc.setFillColor(245,235,218);doc.rect(MG,y,CW,6,'F');
-            doc.setTextColor(...TDARK);doc.setFontSize(8);doc.setFont('helvetica','bold');
-            doc.text((group.catCode!=='BEZ'?group.catCode+' - ':'')+group.catName,MG+2,y+4);y+=6;
+            chkPage(8);doc.setFillColor(245,235,218);doc.rect(MG,y,CW,5,'F');
+            doc.setTextColor(...TDARK);doc.setFontSize(7.5);doc.setFont('helvetica','bold');
+            doc.text((group.catCode!=='BEZ'?group.catCode+' - ':'')+group.catName,MG+2,y+3.4);y+=5;
             const rows=group.items.map(i=>[i._art?i._art.code:'—',i._art?i._art.name:'Nije u bazi',i._art?(i._art.unit||''):'',String(i.barcode),i.hasDiscount?'Da ('+i.discountDays+'d)':'Ne']);
-            chkPage(rows.length*6+8);
             doc.autoTable({startY:y,margin:{left:MG,right:MG},
               head:[['Sifra','Naziv artikla','JME','Barkod','Snizenje']],body:rows,
-              theme:'plain',styles:{fontSize:7.5,cellPadding:1.8,textColor:TDARK,lineColor:LBROWN,lineWidth:0.2},
-              headStyles:{fillColor:BROWN,textColor:[255,255,255],fontStyle:'bold',fontSize:7.5},
+              theme:'plain',styles:{fontSize:7,cellPadding:1.2,textColor:TDARK,lineColor:LBROWN,lineWidth:0.15},
+              headStyles:{fillColor:BROWN,textColor:[255,255,255],fontStyle:'bold',fontSize:7},
               alternateRowStyles:{fillColor:CREAM},
-              columnStyles:{0:{cellWidth:16},1:{cellWidth:68},2:{cellWidth:10,halign:'center'},3:{cellWidth:32,font:'courier'},4:{cellWidth:16,halign:'center'}},
-              didDrawPage:()=>{pageNum++;addHdr();}});
-            y=doc.lastAutoTable.finalY+3;
-          });y+=2;
+              columnStyles:{0:{cellWidth:15},1:{cellWidth:72},2:{cellWidth:9,halign:'center'},3:{cellWidth:34,font:'courier'},4:{cellWidth:14,halign:'center'}},
+              showHead:'everyPage',
+              didDrawPage:(data)=>{pageNum++;addHdr();data.settings.margin.top=17;}});
+            y=doc.lastAutoTable.finalY+2;
+          });y+=1;
         }
         if(dayDisc.length){
           chkPage(14);doc.setTextColor(...ORANGE);doc.setFontSize(10);doc.setFont('helvetica','bold');
           doc.text('Snizenje - '+dayDisc.length+' artikala',MG,y+4);y+=7;
           this._groupByCategory(dayDisc).forEach(group=>{
-            chkPage(10);doc.setFillColor(245,235,218);doc.rect(MG,y,CW,6,'F');
-            doc.setTextColor(...TDARK);doc.setFontSize(8);doc.setFont('helvetica','bold');
-            doc.text((group.catCode!=='BEZ'?group.catCode+' - ':'')+group.catName,MG+2,y+4);y+=6;
+            chkPage(8);doc.setFillColor(245,235,218);doc.rect(MG,y,CW,5,'F');
+            doc.setTextColor(...TDARK);doc.setFontSize(7.5);doc.setFont('helvetica','bold');
+            doc.text((group.catCode!=='BEZ'?group.catCode+' - ':'')+group.catName,MG+2,y+3.4);y+=5;
             const rows=group.items.map(i=>[i._art?i._art.code:'—',i._art?i._art.name:'Nije u bazi',i._art?(i._art.unit||''):'',String(i.barcode),fmtD(i.discountDate),fmtD(i.expiryDate)]);
-            chkPage(rows.length*6+8);
             doc.autoTable({startY:y,margin:{left:MG,right:MG},
               head:[['Sifra','Naziv artikla','JME','Barkod','Dat.sniz.','Dat.ist.']],body:rows,
-              theme:'plain',styles:{fontSize:7.5,cellPadding:1.8,textColor:TDARK,lineColor:LBROWN,lineWidth:0.2},
-              headStyles:{fillColor:BROWN,textColor:[255,255,255],fontStyle:'bold',fontSize:7.5},
+              theme:'plain',styles:{fontSize:7,cellPadding:1.2,textColor:TDARK,lineColor:LBROWN,lineWidth:0.15},
+              headStyles:{fillColor:BROWN,textColor:[255,255,255],fontStyle:'bold',fontSize:7},
               alternateRowStyles:{fillColor:CREAM},
-              columnStyles:{0:{cellWidth:16},1:{cellWidth:58},2:{cellWidth:10,halign:'center'},3:{cellWidth:30,font:'courier'},4:{cellWidth:20,halign:'center'},5:{cellWidth:20,halign:'center'}},
-              didDrawPage:()=>{pageNum++;addHdr();}});
-            y=doc.lastAutoTable.finalY+3;
-          });y+=2;
+              columnStyles:{0:{cellWidth:15},1:{cellWidth:56},2:{cellWidth:9,halign:'center'},3:{cellWidth:30,font:'courier'},4:{cellWidth:19,halign:'center'},5:{cellWidth:19,halign:'center'}},
+              showHead:'everyPage',
+              didDrawPage:(data)=>{pageNum++;addHdr();data.settings.margin.top=17;}});
+            y=doc.lastAutoTable.finalY+2;
+          });y+=1;
         }
-        y+=4;
+        y+=3;
       });
       doc.setTextColor(...GRAY);doc.setFontSize(7);doc.setFont('helvetica','normal');
       doc.text('Aman maloprodaja - Knjiga Rokova',PW/2,292,{align:'center'});
