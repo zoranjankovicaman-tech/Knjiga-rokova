@@ -176,6 +176,10 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 .exp-opt-t{font-weight:700;font-size:.83rem;margin-bottom:2px;}
 .exp-opt-d{font-size:.7rem;color:var(--text3);}
 .code-block{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;font-family:monospace;font-size:.68rem;color:var(--text2);overflow-x:auto;white-space:pre;max-height:300px;overflow-y:auto;line-height:1.5;}
+.pdf-col-chk{display:flex;align-items:center;gap:7px;font-size:.81rem;padding:6px 10px;background:var(--bg2);border:1.5px solid var(--border);border-radius:8px;cursor:pointer;transition:all .18s;color:var(--text);}
+.pdf-col-chk:hover{border-color:var(--accent);background:var(--accent-bg);}
+.pdf-col-chk input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:pointer;}
+.adv-info{font-size:.75rem;color:var(--text2);background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;margin:4px 0 10px;line-height:1.7;}
 .divider{border:none;border-top:1px solid var(--border2);margin:9px 0;}
 .hidden{display:none!important;}
 .search-wrap{position:relative;margin-bottom:8px;}
@@ -2799,6 +2803,194 @@ const ConfirmDel={
   async execute(){UI.cl('conf-overlay');if(this._fn)await this._fn();this._fn=null;}
 };
 
+/* ===== NAPREDNI IZVOZ — SUPER ADMIN ===== */
+const AdvExport={
+  _rows:null,
+  _meta:null,
+
+  async open(){
+    if(!CatDB._loaded)await CatDB.refresh(true).catch(()=>{});
+    const sel=document.getElementById('adv-cat');
+    sel.innerHTML='<option value="__all__">Sve kategorije</option>';
+    Object.entries(CatDB._data)
+      .sort((a,b)=>a[0].localeCompare(b[0]))
+      .forEach(([code,cat])=>{
+        const o=document.createElement('option');
+        o.value=code;o.textContent=code+' — '+cat.name;sel.appendChild(o);
+      });
+    const from=new Date();
+    const to=new Date();to.setDate(to.getDate()+30);
+    document.getElementById('adv-from').value=from.toISOString().split('T')[0];
+    document.getElementById('adv-to').value=to.toISOString().split('T')[0];
+    document.getElementById('adv-exp-overlay').classList.add('open');
+  },
+
+  async _fetchData(){
+    const dateFrom=document.getElementById('adv-from').value;
+    const dateTo=document.getElementById('adv-to').value;
+    const catFilter=document.getElementById('adv-cat').value;
+    if(!dateFrom||!dateTo){toast('Izaberite datumski opseg!','err');return null;}
+    if(dateFrom>dateTo){toast('Početni datum mora biti pre krajnjeg!','err');return null;}
+    if(!ArtDB._loaded)await ArtDB.refreshFromFirebase(true).catch(()=>{});
+    if(!CatDB._loaded)await CatDB.refresh(true).catch(()=>{});
+    const sd=await FBR.get('storeConfig');
+    if(!sd){toast('Nema podataka!','err');return null;}
+    const allS=Object.entries(sd).map(([id,v])=>({id,...v}));
+    const rows=[];
+    for(const s of allS){
+      const tName=terrains.find(t=>t.id===s.terrainId)?.name||'';
+      const its=await DB.fetch(s.id);
+      for(const i of its){
+        if(i.expiryDate<dateFrom||i.expiryDate>dateTo)continue;
+        const art=ArtDB.lookup(i.barcode);
+        const catCode=art?.category||'';
+        if(catFilter!=='__all__'&&catCode!==catFilter)continue;
+        const catName=catCode?(CatDB.getName(catCode)||''):'';
+        const catSort=catCode?catCode.padStart(5,'0'):'ZZZ';
+        const sifraSort=(art?.code||'ZZZ').padStart(10,'0');
+        rows.push({
+          teren:tName, objekat:s.name,
+          sifra:art?.code||'', naziv:art?.name||'', jm:art?.unit||'',
+          kategorija:catName, catSort, sifraSort,
+          barcode:String(i.barcode),
+          expiryDate:i.expiryDate,
+          hasDiscount:i.hasDiscount?'Da':'Ne',
+          discountDate:i.discountDate?fmtD(i.discountDate):'',
+          discountDays:String(i.discountDays||'')
+        });
+      }
+    }
+    // Sortiranje: kategorija → šifra → objekat → datum isteka
+    rows.sort((a,b)=>
+      a.catSort.localeCompare(b.catSort)||
+      a.sifraSort.localeCompare(b.sifraSort)||
+      a.objekat.localeCompare(b.objekat)||
+      a.expiryDate.localeCompare(b.expiryDate)
+    );
+    return{rows,dateFrom,dateTo,catFilter};
+  },
+
+  async goExcel(){
+    toast('Učitavam podatke...');
+    try{
+      const res=await this._fetchData();
+      if(!res)return;
+      const{rows,dateFrom,dateTo,catFilter}=res;
+      if(!rows.length){toast('Nema podataka za izabrani period!','err');return;}
+      const hdrs=['Teren','Prodavnica','Šifra','Naziv artikla','JM','Kategorija','Barkod','Datum isteka','Sniženje','Dat.sniženja','Dana'];
+      const data=rows.map(r=>[r.teren,r.objekat,r.sifra,r.naziv,r.jm,r.kategorija,r.barcode,fmtD(r.expiryDate),r.hasDiscount,r.discountDate,r.discountDays]);
+      const catSufx=catFilter!=='__all__'?'_kat'+catFilter:'';
+      await xlsxWrite(hdrs,data,`napredno_${dateFrom}_${dateTo}${catSufx}_(${rows.length}art).xlsx`);
+      UI.cl('adv-exp-overlay');
+      toast('✓ Izvezeno '+rows.length+' artikala','ok');
+    }catch(e){toast('Greška!','err');console.error(e);}
+  },
+
+  async goPdf(){
+    toast('Učitavam podatke...');
+    try{
+      const res=await this._fetchData();
+      if(!res)return;
+      const{rows,dateFrom,dateTo,catFilter}=res;
+      if(!rows.length){toast('Nema podataka za izabrani period!','err');return;}
+      this._rows=rows;this._meta={dateFrom,dateTo,catFilter};
+      UI.cl('adv-exp-overlay');
+      document.getElementById('adv-pdf-overlay').classList.add('open');
+    }catch(e){toast('Greška!','err');console.error(e);}
+  },
+
+  async generatePdf(){
+    const ok=await ensureJsPDF();if(!ok)return;
+    const rows=this._rows;
+    const{dateFrom,dateTo,catFilter}=this._meta;
+    const cols={
+      sifra:   document.getElementById('pc-sifra').checked,
+      naziv:   document.getElementById('pc-naziv').checked,
+      jm:      document.getElementById('pc-jm').checked,
+      kat:     document.getElementById('pc-kat').checked,
+      teren:   document.getElementById('pc-teren').checked,
+      objekat: document.getElementById('pc-objekat').checked,
+      barcode: document.getElementById('pc-barcode').checked,
+      datum:   document.getElementById('pc-datum').checked,
+      snizenje:document.getElementById('pc-snizenje').checked,
+      datsniz: document.getElementById('pc-datsniz').checked,
+      dana:    document.getElementById('pc-dana').checked
+    };
+    const colDef=[
+      {key:'sifra',    label:'Šifra',       w:14, fn:r=>r.sifra},
+      {key:'naziv',    label:'Naziv artikla',w:65, fn:r=>r.naziv},
+      {key:'jm',       label:'JM',          w:8,  halign:'center',fn:r=>r.jm},
+      {key:'kat',      label:'Kategorija',  w:28, fn:r=>r.kategorija},
+      {key:'teren',    label:'Teren',        w:22, fn:r=>r.teren},
+      {key:'objekat',  label:'Prodavnica',   w:30, fn:r=>r.objekat},
+      {key:'barcode',  label:'Barkod',       w:28, font:'courier',fn:r=>r.barcode},
+      {key:'datum',    label:'Dat.isteka',   w:18, halign:'center',fn:r=>fmtD(r.expiryDate)},
+      {key:'snizenje', label:'Sniženje',     w:14, halign:'center',fn:r=>r.hasDiscount},
+      {key:'datsniz',  label:'Dat.sniz.',    w:18, halign:'center',fn:r=>r.discountDate},
+      {key:'dana',     label:'Dana',         w:10, halign:'center',fn:r=>r.discountDays}
+    ].filter(c=>cols[c.key]);
+    if(colDef.length<2){toast('Izaberite najmanje 2 kolone!','err');return;}
+    toast('Generisujem PDF...');
+    try{
+      const{jsPDF}=window.jspdf;
+      const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+      const BROWN=[184,106,0];const LBROWN=[232,213,176];const CREAM=[255,253,248];
+      const TDARK=[92,58,0];const GRAY=[130,130,130];
+      const PW=297;const PH=210;const MG=8;const CW=PW-MG*2;
+      let pageNum=1;
+      const catFilterName=catFilter!=='__all__'?(CatDB.getName(catFilter)||catFilter):'Sve kategorije';
+      const addHdr=()=>{
+        doc.setFillColor(...BROWN);doc.rect(0,0,PW,13,'F');
+        doc.setTextColor(255,255,255);doc.setFontSize(9);doc.setFont('helvetica','bold');
+        doc.text('KNJIGA ROKOVA — SUPER ADMIN',MG,5.5);
+        doc.setFontSize(7);doc.setFont('helvetica','normal');
+        doc.text('Period: '+fmtD(dateFrom)+' — '+fmtD(dateTo)+'  |  '+catFilterName+'  |  Generisano: '+fmtD(today()),MG,10.5);
+        doc.text('Str. '+pageNum,PW-MG,10.5,{align:'right'});
+      };
+      addHdr();let y=16;
+      const chkPg=(n=18)=>{if(y+n>PH-6){doc.addPage();pageNum++;addHdr();y=16;}};
+      const hdRow=colDef.map(c=>c.label);
+      const colStyles={};
+      colDef.forEach((c,idx)=>{
+        colStyles[idx]={cellWidth:c.w};
+        if(c.halign)colStyles[idx].halign=c.halign;
+        if(c.font)colStyles[idx].font=c.font;
+      });
+      // Grupiši po kategoriji
+      let curCatSort=null;let curCatLabel='';let tableRows=[];
+      const flush=()=>{
+        if(!tableRows.length)return;
+        chkPg(20);
+        doc.setFillColor(245,235,218);doc.rect(MG,y,CW,5,'F');
+        doc.setTextColor(...TDARK);doc.setFontSize(7.5);doc.setFont('helvetica','bold');
+        doc.text(curCatLabel+' ('+tableRows.length+' art.)',MG+2,y+3.4);y+=5;
+        doc.autoTable({startY:y,margin:{left:MG,right:MG},
+          head:[hdRow],body:tableRows,theme:'plain',
+          styles:{fontSize:6.5,cellPadding:1.1,textColor:TDARK,lineColor:LBROWN,lineWidth:0.15},
+          headStyles:{fillColor:BROWN,textColor:[255,255,255],fontStyle:'bold',fontSize:6.5},
+          alternateRowStyles:{fillColor:CREAM},
+          columnStyles:colStyles,showHead:'everyPage',
+          didDrawPage:(data)=>{pageNum++;addHdr();data.settings.margin.top=16;}
+        });
+        y=doc.lastAutoTable.finalY+3;tableRows=[];
+      };
+      rows.forEach(r=>{
+        const catLabel=(r.catSort.startsWith('ZZZ')?'':r.catSort.replace(/^0+/,'')+' — ')+(r.kategorija||'Bez kategorije');
+        if(r.catSort!==curCatSort){flush();curCatSort=r.catSort;curCatLabel=catLabel;}
+        tableRows.push(colDef.map(c=>c.fn(r)));
+      });
+      flush();
+      doc.setTextColor(...GRAY);doc.setFontSize(6.5);doc.setFont('helvetica','normal');
+      doc.text('Aman maloprodaja — Knjiga Rokova — Ukupno: '+rows.length+' stavki',PW/2,PH-3,{align:'center'});
+      const catSufx=catFilter!=='__all__'?'_kat'+catFilter:'';
+      doc.save('izvoz_super_'+dateFrom+'_'+dateTo+catSufx+'.pdf');
+      UI.cl('adv-pdf-overlay');
+      toast('✓ PDF preuzet ('+rows.length+' stavki)','ok');
+    }catch(e){toast('Greška PDF: '+e.message,'err');console.error(e);}
+  }
+};
+
+
 /* ===== FULL BACKUP ===== */
 const FullBackup={
   async exportJSON(){
@@ -3295,6 +3487,7 @@ function _resumeSession(){
   <div class="exp-opts">
     <div class="exp-opt" onclick="FullBackup.exportJSON()"><div class="exp-opt-t">📄 Izvoz JSON — kompletna baza</div><div class="exp-opt-d">Tereni + objekti + sve stavke svih prodavnica</div></div>
     <div class="exp-opt" onclick="FullBackup.exportExcel()"><div class="exp-opt-t">📊 Izvoz Excel — sve prodavnice</div><div class="exp-opt-d">Jedan fajl, sve prodavnice, sve stavke</div></div>
+    <div class="exp-opt" onclick="AdvExport.open()"><div class="exp-opt-t">🔍 Napredni izvoz — opseg + kategorija</div><div class="exp-opt-d">Excel ili PDF · filter po periodu i kategoriji · sve prodavnice · sve kolone</div></div>
     <div class="exp-opt" onclick="FullBackup.trigImport()"><div class="exp-opt-t">📤 Uvoz JSON — merge bez dupliranja</div><div class="exp-opt-d">Dodaju se samo novi zapisi. Postojeći podaci se zadržavaju.</div></div>
   </div>
   <input type="file" id="full-imp-file" accept=".json" style="display:none" onchange="FullBackup.importJSON(event)">
@@ -3336,6 +3529,48 @@ function _resumeSession(){
   <div class="btn-row">
     <button class="btn btn-primary" style="flex:1" onclick="Undo.restore()">↩️ Da, vrati unazad</button>
     <button class="btn btn-ghost" style="flex:1" onclick="UI.cl('undo-overlay')">Ne, zadrži</button>
+  </div>
+</div>
+</div>
+
+<!-- NAPREDNI IZVOZ — Super Admin -->
+<div class="overlay" id="adv-exp-overlay">
+<div class="modal modal-wide">
+  <div class="modal-title">🔍 Napredni izvoz — Super Admin</div>
+  <div class="frow"><label class="flbl">Datum isteka — OD</label><input type="date" id="adv-from"></div>
+  <div class="frow"><label class="flbl">Datum isteka — DO</label><input type="date" id="adv-to"></div>
+  <div class="frow"><label class="flbl">Kategorija (robna grupa)</label><select id="adv-cat"><option value="__all__">Sve kategorije</option></select></div>
+  <div class="adv-info">📋 Obuhvata sve terene i sve prodavnice<br>🔢 Sortiranje: Kategorija → Šifra → Objekat → Datum isteka<br>📊 Kolone: Teren, Prodavnica, Šifra, Naziv, JM, Kategorija, Barkod, Datum isteka, Sniženje, Dat.sniženja, Dana</div>
+  <div class="btn-row">
+    <button class="btn btn-primary" style="flex:1" onclick="AdvExport.goExcel()">📊 Izvoz Excel</button>
+    <button class="btn" style="flex:1;background:var(--danger);color:#fff" onclick="AdvExport.goPdf()">📄 Izvoz PDF</button>
+  </div>
+  <button class="btn btn-ghost btn-full mt8" onclick="UI.cl('adv-exp-overlay')">Zatvori</button>
+</div>
+</div>
+
+<!-- PDF SELEKCIJA KOLONA — Super Admin napredni izvoz -->
+<div class="overlay" id="adv-pdf-overlay" style="z-index:650">
+<div class="modal">
+  <div class="modal-title">📄 Izbor kolona za PDF</div>
+  <p style="font-size:.75rem;color:var(--text2);margin-bottom:10px">Izaberite koje kolone da se prikažu u izvještaju (PDF A4 landscape)</p>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">
+    <label class="pdf-col-chk"><input type="checkbox" id="pc-sifra" checked> Šifra</label>
+    <label class="pdf-col-chk"><input type="checkbox" id="pc-naziv" checked> Naziv artikla</label>
+    <label class="pdf-col-chk"><input type="checkbox" id="pc-jm" checked> JM</label>
+    <label class="pdf-col-chk"><input type="checkbox" id="pc-kat"> Kategorija u redu</label>
+    <label class="pdf-col-chk"><input type="checkbox" id="pc-teren" checked> Teren</label>
+    <label class="pdf-col-chk"><input type="checkbox" id="pc-objekat" checked> Prodavnica</label>
+    <label class="pdf-col-chk"><input type="checkbox" id="pc-barcode" checked> Barkod</label>
+    <label class="pdf-col-chk"><input type="checkbox" id="pc-datum" checked> Datum isteka</label>
+    <label class="pdf-col-chk"><input type="checkbox" id="pc-snizenje"> Sniženje</label>
+    <label class="pdf-col-chk"><input type="checkbox" id="pc-datsniz"> Dat. sniženja</label>
+    <label class="pdf-col-chk"><input type="checkbox" id="pc-dana"> Dana sniženja</label>
+  </div>
+  <p style="font-size:.72rem;color:var(--text3);margin-bottom:10px">💡 Kategorija je uvijek vidljiva kao naslov grupe. Opcija "Kategorija u redu" dodaje je i kao kolonu.</p>
+  <div class="btn-row">
+    <button class="btn btn-primary" style="flex:1" onclick="AdvExport.generatePdf()">📄 Generiši PDF</button>
+    <button class="btn btn-ghost" style="flex:1" onclick="UI.cl('adv-pdf-overlay')">Otkaži</button>
   </div>
 </div>
 </div>
