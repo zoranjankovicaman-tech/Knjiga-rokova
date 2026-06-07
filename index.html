@@ -1970,13 +1970,13 @@ const PDFReport={
             chkPage(8);doc.setFillColor(245,235,218);doc.rect(MG,y,CW,5,'F');
             doc.setTextColor(...TDARK);doc.setFontSize(7.5);doc.setFont('helvetica','bold');
             doc.text((group.catCode!=='BEZ'?group.catCode+' - ':'')+group.catName,MG+2,y+3.4);y+=5;
-            const rows=group.items.map(i=>[i._art?i._art.code:'—',i._art?i._art.name:'Nije u bazi',i._art?(i._art.unit||''):'',String(i.barcode),i.hasDiscount?'Da ('+i.discountDays+'d)':'Ne']);
+            const rows=group.items.map(i=>[i._art?i._art.code:'—',i._art?i._art.name:'Nije u bazi',i._art?(i._art.unit||''):'',String(i.barcode),i.hasDiscount?'Da ('+i.discountDays+'d)':'Ne',i.qty!=null?String(i.qty)+(i._art&&i._art.unit?' '+i._art.unit:''):'—']);
             doc.autoTable({startY:y,margin:{left:MG,right:MG},
-              head:[['Sifra','Naziv artikla','JME','Barkod','Snizenje']],body:rows,
+              head:[['Sifra','Naziv artikla','JME','Barkod','Snizenje','Kol.']],body:rows,
               theme:'plain',styles:{fontSize:7,cellPadding:1.2,textColor:TDARK,lineColor:LBROWN,lineWidth:0.15},
               headStyles:{fillColor:BROWN,textColor:[255,255,255],fontStyle:'bold',fontSize:7},
               alternateRowStyles:{fillColor:CREAM},
-              columnStyles:{0:{cellWidth:15},1:{cellWidth:72},2:{cellWidth:9,halign:'center'},3:{cellWidth:34,font:'courier'},4:{cellWidth:14,halign:'center'}},
+              columnStyles:{0:{cellWidth:15},1:{cellWidth:62},2:{cellWidth:9,halign:'center'},3:{cellWidth:34,font:'courier'},4:{cellWidth:14,halign:'center'},5:{cellWidth:14,halign:'center'}},
               showHead:'everyPage',
               didDrawPage:(data)=>{pageNum++;addHdr();data.settings.margin.top=17;}});
             y=doc.lastAutoTable.finalY+2;
@@ -1989,13 +1989,13 @@ const PDFReport={
             chkPage(8);doc.setFillColor(245,235,218);doc.rect(MG,y,CW,5,'F');
             doc.setTextColor(...TDARK);doc.setFontSize(7.5);doc.setFont('helvetica','bold');
             doc.text((group.catCode!=='BEZ'?group.catCode+' - ':'')+group.catName,MG+2,y+3.4);y+=5;
-            const rows=group.items.map(i=>[i._art?i._art.code:'—',i._art?i._art.name:'Nije u bazi',i._art?(i._art.unit||''):'',String(i.barcode),fmtD(i.discountDate),fmtD(i.expiryDate)]);
+            const rows=group.items.map(i=>[i._art?i._art.code:'—',i._art?i._art.name:'Nije u bazi',i._art?(i._art.unit||''):'',String(i.barcode),fmtD(i.discountDate),fmtD(i.expiryDate),i.qty!=null?String(i.qty)+(i._art&&i._art.unit?' '+i._art.unit:''):'—']);
             doc.autoTable({startY:y,margin:{left:MG,right:MG},
-              head:[['Sifra','Naziv artikla','JME','Barkod','Dat.sniz.','Dat.ist.']],body:rows,
+              head:[['Sifra','Naziv artikla','JME','Barkod','Dat.sniz.','Dat.ist.','Kol.']],body:rows,
               theme:'plain',styles:{fontSize:7,cellPadding:1.2,textColor:TDARK,lineColor:LBROWN,lineWidth:0.15},
               headStyles:{fillColor:BROWN,textColor:[255,255,255],fontStyle:'bold',fontSize:7},
               alternateRowStyles:{fillColor:CREAM},
-              columnStyles:{0:{cellWidth:15},1:{cellWidth:56},2:{cellWidth:9,halign:'center'},3:{cellWidth:30,font:'courier'},4:{cellWidth:19,halign:'center'},5:{cellWidth:19,halign:'center'}},
+              columnStyles:{0:{cellWidth:15},1:{cellWidth:50},2:{cellWidth:9,halign:'center'},3:{cellWidth:28,font:'courier'},4:{cellWidth:17,halign:'center'},5:{cellWidth:17,halign:'center'},6:{cellWidth:12,halign:'center'}},
               showHead:'everyPage',
               didDrawPage:(data)=>{pageNum++;addHdr();data.settings.margin.top=17;}});
             y=doc.lastAutoTable.finalY+2;
