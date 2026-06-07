@@ -141,6 +141,21 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 .badge{font-size:.61rem;font-weight:700;padding:2px 7px;border-radius:20px;white-space:nowrap;text-transform:uppercase;}
 .badge-d{background:var(--warn);color:#fff;}
 .badge-n{background:var(--border2);color:var(--text3);}
+.badge-qty{background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent-border);cursor:pointer;transition:all .18s;}
+.badge-qty:hover{background:var(--accent);color:#fff;}
+.badge-qty-empty{background:var(--bg2);color:var(--text3);border:1px dashed var(--border);cursor:pointer;transition:all .18s;font-size:.6rem;}
+.badge-qty-empty:hover{border-color:var(--accent);color:var(--accent);}
+.qty-popup-inner{background:var(--card);border-radius:14px;padding:16px;width:260px;box-shadow:0 8px 30px var(--shadow2);}
+.qty-popup-title{font-family:var(--ff-h);font-size:.85rem;color:var(--accent);margin-bottom:10px;}
+.qty-inp-row{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
+.qty-inp-row input{flex:1;font-size:1.1rem;font-weight:700;text-align:center;padding:8px;}
+.qty-unit-lbl{font-size:.8rem;font-weight:700;color:var(--text2);min-width:30px;}
+.dq-table{width:100%;border-collapse:collapse;font-size:.8rem;}
+.dq-table th{padding:5px 8px;background:var(--accent);color:#fff;font-size:.72rem;text-align:left;}
+.dq-table td{padding:5px 8px;border-bottom:1px solid var(--border2);vertical-align:middle;}
+.dq-table tr:nth-child(even) td{background:var(--bg2);}
+.dq-urgent td{color:var(--danger);font-weight:700;}
+.dq-warn td{color:var(--warn);}
 .empty-state{text-align:center;padding:24px 14px;color:var(--text3);font-size:.8rem;}
 .empty-ico{font-size:1.9rem;margin-bottom:7px;}
 .sync-badge{font-size:.66rem;color:var(--success);display:flex;align-items:center;gap:4px;margin-bottom:7px;}
@@ -604,6 +619,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
                    onchange="Steps.onCalendarPick(this.value)">
           </div>
         </div>
+      <div class="frow" id="s2-qty-row" style="margin:6px 0 8px"><label class="flbl" style="display:flex;align-items:center;gap:6px">📦 Količina <span style="font-weight:400;color:var(--text3);font-size:.72rem">(opciono)</span></label><div style="display:flex;align-items:center;gap:8px"><input type="number" id="qty-input" min="0" placeholder="—" inputmode="decimal" style="width:110px;font-size:1rem;font-weight:700;text-align:center" onkeydown="if(event.key==='Enter')Steps.confirmDate()"><span id="qty-unit-lbl" style="font-size:.82rem;font-weight:700;color:var(--accent);min-width:32px"></span></div></div>
       <button class="btn btn-primary btn-full" onclick="Steps.confirmDate()">✓ Potvrdi datum</button>
       <button class="btn btn-ghost btn-full mt8" onclick="Steps.go(1)">← Nazad</button>
     </div>
@@ -623,7 +639,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   </div>
   <div class="stats">
     <div class="stat-box"><div class="stat-n" id="sn-total">0</div><div class="stat-lbl">Ukupno</div></div>
-    <div class="stat-box"><div class="stat-n" id="sn-disc" style="color:var(--warn)">0</div><div class="stat-lbl">Sa snižnjem</div></div>
+    <div class="stat-box" onclick="DiscQty.open()" style="cursor:pointer" title="Klikni za pregled sniženih količina"><div class="stat-n" id="sn-disc" style="color:var(--warn)">0</div><div class="stat-lbl">Sa snižnjem</div><div id="sn-disc-qty" style="font-size:.62rem;color:var(--text3);margin-top:2px;min-height:13px"></div></div>
     <div class="stat-box"><div class="stat-n" id="sn-today" style="color:var(--danger)">0</div><div class="stat-lbl">Ističe danas</div></div>
     <div class="stat-box" title="Artikli koji ističu sutra">
       <div class="stat-n" id="sn-tmr" style="color:var(--accent)">0</div>
@@ -824,6 +840,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   <div class="frow"><label class="flbl">Datum isteka</label><input type="date" id="ed-date"></div>
   <div class="frow"><label class="flbl">Sniženje</label><select id="ed-disc" onchange="Edit.togDays()"><option value="0">Ne</option><option value="1">Da</option></select></div>
   <div class="frow hidden" id="ed-drow"><label class="flbl">Broj dana</label><select id="ed-days"><option value="5">5 dana</option><option value="7">7 dana</option><option value="10">10 dana</option><option value="15">15 dana</option><option value="20">20 dana</option><option value="30">30 dana</option></select></div>
+  <div class="frow"><label class="flbl" style="display:flex;align-items:center;gap:6px">📦 Količina <span style="font-weight:400;color:var(--text3);font-size:.72rem">(opciono)</span></label><div style="display:flex;align-items:center;gap:8px"><input type="number" id="ed-qty" min="0" placeholder="—" inputmode="decimal" style="width:110px;font-size:1rem;font-weight:700;text-align:center"><span id="ed-qty-unit" style="font-size:.82rem;font-weight:700;color:var(--accent)"></span></div></div>
   <hr class="divider">
   <div class="btn-row">
     <button class="btn btn-primary" style="flex:1" onclick="Edit.save()">💾 Sačuvaj</button>
@@ -1356,14 +1373,18 @@ const CtrlMode={
         const uT=item.createdAt?'<div class="ctrl-item-sub">&#128336; Uneto: '+fmtDT(item.createdAt)+'</div>':'';
         const artI=ArtDB.lookup(item.barcode);
         const artLine=artI?'<div class="ctrl-item-sub" style="color:var(--accent);font-weight:600">&#128230; '+esc(artI.name)+(artI.code?' &middot; <span style="color:var(--text3)">'+esc(artI.code)+'</span>':'')+'</div>':'';
+        const qtyBadge=item.qty!=null
+          ?'<span class="badge badge-qty" onclick="QtyEdit.open(\''+item.id+'\',event)" title="Klikni za izmjenu količine">&#128230; '+item.qty+(artI&&artI.unit?' '+artI.unit:'')+'</span>'
+          :'<span class="badge badge-qty-empty" onclick="QtyEdit.open(\''+item.id+'\',event)" title="Unesi količinu">&#128230;+</span>';
         return'<div class="'+cls+'">'
           +'<div class="ctrl-item-main">'
           +artLine
-          +'<div class="ctrl-item-date">'+ico+' Isti&#269;e: '+fmtD(item.expiryDate)+'</div>'
+          +'<div class="ctrl-item-date" style="cursor:pointer" onclick="QtyEdit.open(\''+item.id+'\',event)">'+ico+' Isti&#269;e: '+fmtD(item.expiryDate)+'</div>'
           +uT
           +'</div>'
-          +'<div style="flex-shrink:0">'
+          +'<div style="flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px">'
           +(item.hasDiscount?'<span class="badge badge-d">-'+item.discountDays+'d</span>':'<span class="badge badge-n">Bez</span>')
+          +qtyBadge
           +'</div></div>';
       }).join('');
       html='<div class="ctrl-result found">'
@@ -1454,7 +1475,11 @@ const Steps={
         _s2info.style.display='none';
       }
     }
-    const _td=today();document.getElementById('exp-date').value=_td;this.initPCDate(_td);this.go(2);
+    const _td=today();document.getElementById('exp-date').value=_td;this.initPCDate(_td);
+    // Postavi JM labelu za qty input
+    const _qUnit=document.getElementById('qty-unit-lbl');if(_qUnit)_qUnit.textContent=(_artS2&&_artS2.unit)?_artS2.unit:'';
+    const _qInp=document.getElementById('qty-input');if(_qInp){_qInp.step=(_artS2&&_artS2.unit&&_artS2.unit.toLowerCase()==='kg')?'0.01':'1';_qInp.value='';}
+    this.go(2);
   },
   confirmDate(){
     // Na PC čita iz native input koji je sinhronizovan sa PC text inputom
@@ -1613,7 +1638,11 @@ const Steps={
       }
       window._dupConfirmed=false;
     }
-    const item={id:uid(),barcode:cBC,expiryDate:cDate,hasDiscount:hd,discountDays:dd,discountDate:dd2,createdAt:new Date().toISOString()};
+    const _qv=document.getElementById('qty-input')?.value.trim();
+    const _qArt=ArtDB.lookup(cBC);
+    const _qIsKg=_qArt?.unit&&_qArt.unit.toLowerCase()==='kg';
+    const _qty=_qv?(_qIsKg?parseFloat(_qv):parseInt(_qv)):null;
+    const item={id:uid(),barcode:cBC,expiryDate:cDate,hasDiscount:hd,discountDays:dd,discountDate:dd2,createdAt:new Date().toISOString(),qty:(_qty!==null&&!isNaN(_qty))?_qty:null};
     try{
       await DB.add(session.sid,item);
       toast('✓ Artikal '+cBC+' sacuvan!','ok');
@@ -1625,7 +1654,10 @@ const Steps={
       return;
     }
     document.getElementById('bc-input').value='';
-    const _r=document.getElementById('s2-art-info');if(_r)_r.style.display='none';cBC='';cDate='';this.go(1);setTimeout(()=>document.getElementById('bc-input').focus(),100);
+    const _r=document.getElementById('s2-art-info');if(_r)_r.style.display='none';
+    const _qi=document.getElementById('qty-input');if(_qi)_qi.value='';
+    const _qu=document.getElementById('qty-unit-lbl');if(_qu)_qu.textContent='';
+    cBC='';cDate='';this.go(1);setTimeout(()=>document.getElementById('bc-input').focus(),100);
   }
 };
 
@@ -1720,6 +1752,7 @@ const List={
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">
           <div class="item-dt">${fmtD(item.expiryDate)}</div>
           ${item.hasDiscount?`<span class="badge badge-d">-${item.discountDays}d</span>`:`<span class="badge badge-n">Bez</span>`}
+          ${item.qty!=null?`<span class="badge badge-qty" onclick="QtyEdit.open('${item.id}',event)">📦 ${item.qty}${artInfo?.unit?" "+artInfo.unit:""}</span>`:`<span class="badge badge-qty-empty" onclick="QtyEdit.open('${item.id}',event)">📦+</span>`}
         </div>
       </div>`;
     }).join('');
@@ -1776,6 +1809,16 @@ const Stats={upd(){
     const n=items.filter(i=>i.expiryDate===tmr).length;
     tmrEl.textContent=n;
     tmrEl.style.color=n>0?'var(--danger)':'var(--accent)';
+  }
+  // Ukupna količina sniženih artikala
+  const _discIt=items.filter(i=>i.hasDiscount);
+  const _qEl=document.getElementById('sn-disc-qty');
+  if(_qEl){
+    const _qItems=_discIt.filter(i=>i.qty!=null);
+    if(_qItems.length>0){
+      const _qSum=_qItems.reduce((s,i)=>s+i.qty,0);
+      _qEl.innerHTML='📦 '+(_qSum%1===0?_qSum:_qSum.toFixed(2));
+    }else{_qEl.textContent='';}
   }
   Notif.show();
 }};
@@ -1834,9 +1877,26 @@ const Edit={
       if(item.createdAt){cvl.textContent=fmtDT(item.createdAt);cel.style.display='block';}
       else cel.style.display='none';
     }
-    this.togDays();document.getElementById('edit-overlay').classList.add('open');},
+    this.togDays();
+    // qty polje
+    const _eqInp=document.getElementById('ed-qty');if(_eqInp)_eqInp.value=item.qty!=null?item.qty:'';
+    const _eqArt=ArtDB.lookup(item.barcode);
+    const _eqU=document.getElementById('ed-qty-unit');if(_eqU)_eqU.textContent=_eqArt?.unit||'';
+    if(_eqInp&&_eqArt?.unit)_eqInp.step=_eqArt.unit.toLowerCase()==='kg'?'0.01':'1';
+    document.getElementById('edit-overlay').classList.add('open');},
   togDays(){document.getElementById('ed-drow').classList.toggle('hidden',document.getElementById('ed-disc').value!=='1');},
-  async save(){const bc=document.getElementById('ed-bc').value.trim(),ed=document.getElementById('ed-date').value;if(!bc||!ed){toast('Popunite polja!','err');return;}const hd=document.getElementById('ed-disc').value==='1';const dd=hd?parseInt(document.getElementById('ed-days').value):null;await DB.upd(session.sid,this._id,{barcode:bc,expiryDate:ed,hasDiscount:hd,discountDays:dd,discountDate:hd?subDays(ed,dd):null});UI.cl('edit-overlay');toast('✓ Izmjena sačuvana','ok');},
+  async save(){
+    const bc=document.getElementById('ed-bc').value.trim(),ed=document.getElementById('ed-date').value;
+    if(!bc||!ed){toast('Popunite polja!','err');return;}
+    const hd=document.getElementById('ed-disc').value==='1';
+    const dd=hd?parseInt(document.getElementById('ed-days').value):null;
+    const _qv=document.getElementById('ed-qty')?.value.trim();
+    const _qArt=ArtDB.lookup(bc);
+    const _qIsKg=_qArt?.unit&&_qArt.unit.toLowerCase()==='kg';
+    const qty=_qv?(_qIsKg?parseFloat(_qv):parseInt(_qv)):null;
+    await DB.upd(session.sid,this._id,{barcode:bc,expiryDate:ed,hasDiscount:hd,discountDays:dd,discountDate:hd?subDays(ed,dd):null,qty:(qty!==null&&!isNaN(qty))?qty:null});
+    UI.cl('edit-overlay');toast('✓ Izmjena sačuvana','ok');
+  },
   async del(){Confirm.show('Obrisati ovaj artikal?',async()=>{await DB.rm(session.sid,this._id);UI.cl('edit-overlay');toast('Artikal obrisan','ok');},'🗑️ Obriši');}
 };
 
@@ -2803,6 +2863,90 @@ const ConfirmDel={
   async execute(){UI.cl('conf-overlay');if(this._fn)await this._fn();this._fn=null;}
 };
 
+
+/* ===== QUICK QTY EDIT ===== */
+const QtyEdit={
+  _id:null,
+  open(id,e){
+    if(e)e.stopPropagation();
+    this._id=id;
+    const item=items.find(i=>i.id===id);if(!item)return;
+    const art=ArtDB.lookup(item.barcode);
+    const unit=art?.unit||'';
+    const isKg=unit.toLowerCase()==='kg';
+    const inp=document.getElementById('qe-input');
+    if(inp){inp.value=item.qty!=null?item.qty:'';inp.step=isKg?'0.01':'1';inp.min='0';}
+    document.getElementById('qe-unit').textContent=unit;
+    const info=document.getElementById('qe-art-info');
+    if(info)info.textContent=art?art.name+' · '+fmtD(item.expiryDate):(item.barcode+' · '+fmtD(item.expiryDate));
+    document.getElementById('qty-popup').classList.add('open');
+    setTimeout(()=>{const i=document.getElementById('qe-input');if(i){i.focus();i.select();}},80);
+  },
+  async save(){
+    const val=document.getElementById('qe-input').value.trim();
+    const item=items.find(i=>i.id===this._id);if(!item)return;
+    const art=ArtDB.lookup(item.barcode);
+    const isKg=art?.unit&&art.unit.toLowerCase()==='kg';
+    const qty=val?(isKg?parseFloat(val):parseInt(val)):null;
+    await DB.upd(session.sid,this._id,{qty:(qty!==null&&!isNaN(qty))?qty:null});
+    UI.cl('qty-popup');
+    toast('✓ Količina ažurirana','ok');
+    // Osvježi DiscQty ako je otvoren
+    if(document.getElementById('discqty-overlay').classList.contains('open'))DiscQty.open();
+  },
+  clear(){UI.cl('qty-popup');}
+};
+
+/* ===== SNIŽENE KOLIČINE — Nivo 2 ===== */
+const DiscQty={
+  open(){
+    const t=today();
+    const discItems=items
+      .filter(i=>i.hasDiscount)
+      .map(i=>{
+        const art=ArtDB.lookup(i.barcode);
+        const days=Math.ceil((new Date(i.expiryDate)-new Date(t))/(1000*60*60*24));
+        return{...i,_art:art,_days:days};
+      })
+      .sort((a,b)=>a._days-b._days);
+
+    const tbody=document.getElementById('dq-tbody');
+    if(!discItems.length){
+      tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">Nema sniženih artikala</td></tr>';
+      document.getElementById('dq-total').textContent='—';
+      document.getElementById('discqty-overlay').classList.add('open');
+      return;
+    }
+    tbody.innerHTML=discItems.map(i=>{
+      let rowCls='';
+      if(i._days<0)rowCls='dq-urgent';
+      else if(i._days<=3)rowCls='dq-warn';
+      const daysText=i._days<0?`Isteklo ${Math.abs(i._days)}d`:i._days===0?'Danas!':i._days===1?'Sutra':`${i._days}d`;
+      const qtyText=i.qty!=null?`<strong>${i.qty}${i._art?.unit?' '+i._art.unit:''}</strong>`:'<span style="color:var(--text3)">—</span>';
+      const name=i._art?esc(i._art.name):esc(i.barcode);
+      const code=i._art?(i._art.code||'—'):'—';
+      return`<tr class="${rowCls}">
+        <td style="font-size:.72rem;color:var(--text3)">${code}</td>
+        <td style="max-width:160px;word-break:break-word">${name}</td>
+        <td style="text-align:center;white-space:nowrap">${fmtD(i.expiryDate)}</td>
+        <td style="text-align:center;font-weight:700">${daysText}</td>
+        <td style="text-align:center">${qtyText}</td>
+        <td style="text-align:center"><button class="btn" style="padding:2px 8px;font-size:.7rem" onclick="QtyEdit.open('${i.id}',event)">✏️</button></td>
+      </tr>`;
+    }).join('');
+
+    // Ukupna količina — samo stavke sa unesenom količinom
+    const qItems=discItems.filter(i=>i.qty!=null);
+    const qSum=qItems.reduce((s,i)=>s+i.qty,0);
+    const dqTot=document.getElementById('dq-total');
+    if(dqTot)dqTot.innerHTML=qItems.length>0
+      ?`<span style="font-size:.75rem;color:var(--text3)">${qItems.length}/${discItems.length} uneseno</span><br>${qSum%1===0?qSum:qSum.toFixed(2)}`
+      :'<span style="font-size:.75rem;color:var(--text3)">Nema unesenih količina</span>';
+
+    document.getElementById('discqty-overlay').classList.add('open');
+  }
+};
+
 /* ===== NAPREDNI IZVOZ — SUPER ADMIN ===== */
 const AdvExport={
   _rows:null,
@@ -2856,7 +3000,8 @@ const AdvExport={
           expiryDate:i.expiryDate,
           hasDiscount:i.hasDiscount?'Da':'Ne',
           discountDate:i.discountDate?fmtD(i.discountDate):'',
-          discountDays:String(i.discountDays||'')
+          discountDays:String(i.discountDays||''),
+          qty:i.qty!=null?i.qty:null
         });
       }
     }
@@ -2877,8 +3022,8 @@ const AdvExport={
       if(!res)return;
       const{rows,dateFrom,dateTo,catFilter}=res;
       if(!rows.length){toast('Nema podataka za izabrani period!','err');return;}
-      const hdrs=['Teren','Prodavnica','Šifra','Naziv artikla','JM','Kategorija','Barkod','Datum isteka','Sniženje','Dat.sniženja','Dana'];
-      const data=rows.map(r=>[r.teren,r.objekat,r.sifra,r.naziv,r.jm,r.kategorija,r.barcode,fmtD(r.expiryDate),r.hasDiscount,r.discountDate,r.discountDays]);
+      const hdrs=['Teren','Prodavnica','Šifra','Naziv artikla','JM','Kategorija','Barkod','Datum isteka','Sniženje','Dat.sniženja','Dana','Količina'];
+      const data=rows.map(r=>[r.teren,r.objekat,r.sifra,r.naziv,r.jm,r.kategorija,r.barcode,fmtD(r.expiryDate),r.hasDiscount,r.discountDate,r.discountDays,r.qty!=null?r.qty:'']);
       const catSufx=catFilter!=='__all__'?'_kat'+catFilter:'';
       await xlsxWrite(hdrs,data,`napredno_${dateFrom}_${dateTo}${catSufx}_(${rows.length}art).xlsx`);
       UI.cl('adv-exp-overlay');
@@ -2914,7 +3059,8 @@ const AdvExport={
       datum:   document.getElementById('pc-datum').checked,
       snizenje:document.getElementById('pc-snizenje').checked,
       datsniz: document.getElementById('pc-datsniz').checked,
-      dana:    document.getElementById('pc-dana').checked
+      dana:    document.getElementById('pc-dana').checked,
+      qty:     document.getElementById('pc-qty')?.checked||false
     };
     const colDef=[
       {key:'sifra',    label:'Šifra',       w:14, fn:r=>r.sifra},
@@ -2927,7 +3073,8 @@ const AdvExport={
       {key:'datum',    label:'Dat.isteka',   w:18, halign:'center',fn:r=>fmtD(r.expiryDate)},
       {key:'snizenje', label:'Sniženje',     w:14, halign:'center',fn:r=>r.hasDiscount},
       {key:'datsniz',  label:'Dat.sniz.',    w:18, halign:'center',fn:r=>r.discountDate},
-      {key:'dana',     label:'Dana',         w:10, halign:'center',fn:r=>r.discountDays}
+      {key:'dana',     label:'Dana',         w:10, halign:'center',fn:r=>r.discountDays},
+      {key:'qty',      label:'Količina',     w:14, halign:'center',fn:r=>r.qty!=null?String(r.qty):''}
     ].filter(c=>cols[c.key]);
     if(colDef.length<2){toast('Izaberite najmanje 2 kolone!','err');return;}
     toast('Generisujem PDF...');
@@ -3044,7 +3191,8 @@ const FullBackup={
             fmtD(i.expiryDate),
             i.hasDiscount?'Da':'Ne',
             i.discountDate?fmtD(i.discountDate):'',
-            i.discountDays||''
+            i.discountDays||'',
+            i.qty!=null?i.qty:''
           ]);
         });
       }
@@ -3566,12 +3714,55 @@ function _resumeSession(){
     <label class="pdf-col-chk"><input type="checkbox" id="pc-snizenje"> Sniženje</label>
     <label class="pdf-col-chk"><input type="checkbox" id="pc-datsniz"> Dat. sniženja</label>
     <label class="pdf-col-chk"><input type="checkbox" id="pc-dana"> Dana sniženja</label>
+    <label class="pdf-col-chk"><input type="checkbox" id="pc-qty" checked> Količina</label>
   </div>
   <p style="font-size:.72rem;color:var(--text3);margin-bottom:10px">💡 Kategorija je uvijek vidljiva kao naslov grupe. Opcija "Kategorija u redu" dodaje je i kao kolonu.</p>
   <div class="btn-row">
     <button class="btn btn-primary" style="flex:1" onclick="AdvExport.generatePdf()">📄 Generiši PDF</button>
     <button class="btn btn-ghost" style="flex:1" onclick="UI.cl('adv-pdf-overlay')">Otkaži</button>
   </div>
+</div>
+</div>
+
+<!-- QTY QUICK EDIT POPUP -->
+<div class="overlay" id="qty-popup" style="z-index:750">
+<div class="qty-popup-inner">
+  <div class="qty-popup-title">📦 Izmjena količine</div>
+  <div id="qe-art-info" style="font-size:.75rem;color:var(--text2);margin-bottom:10px;min-height:16px"></div>
+  <div class="qty-inp-row">
+    <input type="number" id="qe-input" min="0" placeholder="0" inputmode="decimal"
+           onkeydown="if(event.key==='Enter')QtyEdit.save()">
+    <span class="qty-unit-lbl" id="qe-unit"></span>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-primary" style="flex:1" onclick="QtyEdit.save()">💾 Sačuvaj</button>
+    <button class="btn btn-ghost" style="flex:1" onclick="QtyEdit.clear()">Otkaži</button>
+  </div>
+</div>
+</div>
+
+<!-- SNIŽENE KOLIČINE — Nivo 2 -->
+<div class="overlay" id="discqty-overlay" style="z-index:600">
+<div class="modal modal-wide">
+  <div class="modal-title">📦 Snižene količine</div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <p style="font-size:.77rem;color:var(--text2)">Sniženi artikli sortirani po hitnosti (datum isteka)</p>
+    <div style="text-align:right">
+      <div style="font-size:.72rem;color:var(--text3)">Ukupna kol.</div>
+      <div id="dq-total" style="font-size:1.1rem;font-weight:700;color:var(--accent)">—</div>
+    </div>
+  </div>
+  <div style="overflow-x:auto;max-height:60vh;overflow-y:auto">
+    <table class="dq-table">
+      <thead><tr>
+        <th>Šifra</th><th>Naziv artikla</th><th style="text-align:center">Dat.isteka</th>
+        <th style="text-align:center">Dana</th><th style="text-align:center">Količina</th>
+        <th style="text-align:center">Uredi</th>
+      </tr></thead>
+      <tbody id="dq-tbody"></tbody>
+    </table>
+  </div>
+  <button class="btn btn-ghost btn-full mt8" onclick="UI.cl('discqty-overlay')">Zatvori</button>
 </div>
 </div>
 </body>
