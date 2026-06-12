@@ -887,6 +887,8 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   </div>
   <div class="frow" id="te-drow"><label class="flbl">Datum za izvoz</label><input type="date" id="te-dp"></div>
   <div class="btn-row"><button class="btn btn-primary" style="flex:1" onclick="TE.go()">📥 Preuzmi Excel</button><button class="btn btn-ghost" style="flex:1" onclick="UI.cl('trn-exp-overlay')">Zatvori</button></div>
+  <hr class="divider">
+  <div class="exp-opt" onclick="UI.cl('trn-exp-overlay');AdvExport.open(session.tid)"><div class="exp-opt-t">🔍 Napredni izvoz — opseg + kategorija + šifra</div><div class="exp-opt-d">Excel · PDF · Prikaz na ekranu · filter po periodu, kategoriji i šifri · saldo količina · praćenje ažuriranja</div></div>
 </div>
 </div>
 
@@ -2961,7 +2963,8 @@ const AdvExport={
   _rows:null,
   _meta:null,
 
-  async open(){
+  async open(terrainId=null){
+    this._terrainId=terrainId||null;
     if(!CatDB._loaded)await CatDB.refresh(true).catch(()=>{});
     const sel=document.getElementById('adv-cat');
     sel.innerHTML='<option value="__all__">Sve kategorije</option>';
@@ -2975,6 +2978,10 @@ const AdvExport={
     const to=new Date();to.setDate(to.getDate()+30);
     document.getElementById('adv-from').value=from.toISOString().split('T')[0];
     document.getElementById('adv-to').value=to.toISOString().split('T')[0];
+    const titleEl=document.getElementById('adv-exp-title');
+    if(titleEl)titleEl.textContent=terrainId
+      ?'🔍 Napredni izvoz — '+(terrains.find(t=>t.id===terrainId)?.name||'Teren')
+      :'🔍 Napredni izvoz — Super Admin';
     const si=document.getElementById('adv-sifra');if(si)si.value='';
     const sh=document.getElementById('adv-sifra-hint');if(sh)sh.textContent='';
     document.getElementById('adv-exp-overlay').classList.add('open');
@@ -3006,7 +3013,8 @@ const AdvExport={
     if(!CatDB._loaded)await CatDB.refresh(true).catch(()=>{});
     const sd=await FBR.get('storeConfig');
     if(!sd){toast('Nema podataka!','err');return null;}
-    const allS=Object.entries(sd).map(([id,v])=>({id,...v}));
+    let allS=Object.entries(sd).map(([id,v])=>({id,...v}));
+    if(this._terrainId)allS=allS.filter(s=>s.terrainId===this._terrainId);
     const rows=[];
     for(const s of allS){
       const tName=terrains.find(t=>t.id===s.terrainId)?.name||'';
@@ -3042,7 +3050,7 @@ const AdvExport={
       a.objekat.localeCompare(b.objekat)||
       a.expiryDate.localeCompare(b.expiryDate)
     );
-    return{rows,dateFrom,dateTo,catFilter,sifraFilter:sifraRaw};
+    return{rows,dateFrom,dateTo,catFilter,sifraFilter:sifraRaw,terrainId:this._terrainId};
   },
 
   async goExcel(){
@@ -3085,8 +3093,9 @@ const AdvExport={
       // Meta info
       const catName=catFilter!=='__all__'?(CatDB.getName(catFilter)||catFilter):'Sve kategorije';
       const sifraName=sifraFilter?(' · Šifra: '+sifraFilter):'';
+      const terrainLabel=res.terrainId?(terrains.find(t=>t.id===res.terrainId)?.name||res.terrainId)+' · ':'';
       document.getElementById('adv-screen-meta').textContent=
-        'Period: '+fmtD(dateFrom)+' — '+fmtD(dateTo)+'  ·  '+catName+sifraName+'  ·  Ukupno: '+rows.length+' stavki';
+        terrainLabel+'Period: '+fmtD(dateFrom)+' — '+fmtD(dateTo)+'  ·  '+catName+sifraName+'  ·  Ukupno: '+rows.length+' stavki';
       // Stats 48h
       this._buildStats(rows);
       // Build saldo
@@ -3226,7 +3235,8 @@ const AdvExport={
   async generatePdf(){
     const ok=await ensureJsPDF();if(!ok)return;
     const rows=this._rows;
-    const{dateFrom,dateTo,catFilter,sifraFilter}=this._meta;
+    const{dateFrom,dateTo,catFilter,sifraFilter,terrainId}=this._meta;
+    const terrainLabel=terrainId?(terrains.find(t=>t.id===terrainId)?.name||terrainId)+' — ':'SUPER ADMIN — ';
     const cols={
       sifra:   document.getElementById('pc-sifra').checked,
       naziv:   document.getElementById('pc-naziv').checked,
@@ -3271,7 +3281,7 @@ const AdvExport={
       const addHdr=()=>{
         doc.setFillColor(...BROWN);doc.rect(0,0,PW,13,'F');
         doc.setTextColor(255,255,255);doc.setFontSize(9);doc.setFont('helvetica','bold');
-        doc.text('KNJIGA ROKOVA — SUPER ADMIN',MG,5.5);
+        doc.text('KNJIGA ROKOVA — '+terrainLabel.replace(' — ',''),MG,5.5);
         doc.setFontSize(7);doc.setFont('helvetica','normal');
         doc.text('Period: '+fmtD(dateFrom)+' — '+fmtD(dateTo)+'  |  '+catFilterName+sifraInfo+'  |  Generisano: '+fmtD(today()),MG,10.5);
         doc.text('Str. '+pageNum,PW-MG,10.5,{align:'right'});
@@ -3907,7 +3917,7 @@ function _resumeSession(){
 <!-- NAPREDNI IZVOZ — Super Admin -->
 <div class="overlay" id="adv-exp-overlay">
 <div class="modal modal-wide">
-  <div class="modal-title">🔍 Napredni izvoz — Super Admin</div>
+  <div class="modal-title" id="adv-exp-title">🔍 Napredni izvoz — Super Admin</div>
   <div class="frow"><label class="flbl">Datum isteka — OD</label><input type="date" id="adv-from"></div>
   <div class="frow"><label class="flbl">Datum isteka — DO</label><input type="date" id="adv-to"></div>
   <div class="frow"><label class="flbl">Kategorija (robna grupa)</label><select id="adv-cat"><option value="__all__">Sve kategorije</option></select></div>
