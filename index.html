@@ -195,6 +195,15 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 .pdf-col-chk:hover{border-color:var(--accent);background:var(--accent-bg);}
 .pdf-col-chk input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:pointer;}
 .adv-info{font-size:.75rem;color:var(--text2);background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;margin:4px 0 10px;line-height:1.7;}
+.adv-sifra-wrap{position:relative;}
+.adv-sifra-hint{font-size:.72rem;color:var(--accent);margin-top:3px;min-height:15px;padding-left:2px;}
+.saldo-table{width:100%;border-collapse:collapse;font-size:.8rem;margin-bottom:4px;}
+.saldo-table th{padding:5px 8px;background:var(--accent);color:#fff;font-size:.72rem;text-align:left;white-space:nowrap;}
+.saldo-table td{padding:5px 8px;border-bottom:1px solid var(--border2);vertical-align:middle;}
+.saldo-table tr:nth-child(even) td{background:var(--bg2);}
+.saldo-total{font-weight:700;color:var(--accent);}
+.screen-section-title{font-size:.82rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.04em;margin:12px 0 6px;border-left:3px solid var(--accent);padding-left:8px;}
+.screen-detail-cat{background:var(--bg2);font-size:.75rem;font-weight:700;color:var(--text2);padding:4px 8px;border-top:1px solid var(--border2);}
 .divider{border:none;border-top:1px solid var(--border2);margin:9px 0;}
 .hidden{display:none!important;}
 .search-wrap{position:relative;margin-bottom:8px;}
@@ -1894,7 +1903,7 @@ const Edit={
     const _qArt=ArtDB.lookup(bc);
     const _qIsKg=_qArt?.unit&&_qArt.unit.toLowerCase()==='kg';
     const qty=_qv?(_qIsKg?parseFloat(_qv):parseInt(_qv)):null;
-    await DB.upd(session.sid,this._id,{barcode:bc,expiryDate:ed,hasDiscount:hd,discountDays:dd,discountDate:hd?subDays(ed,dd):null,qty:(qty!==null&&!isNaN(qty))?qty:null});
+    await DB.upd(session.sid,this._id,{barcode:bc,expiryDate:ed,hasDiscount:hd,discountDays:dd,discountDate:hd?subDays(ed,dd):null,qty:(qty!==null&&!isNaN(qty))?qty:null,qtyUpdatedAt:new Date().toISOString()});
     UI.cl('edit-overlay');toast('✓ Izmjena sačuvana','ok');
   },
   async del(){Confirm.show('Obrisati ovaj artikal?',async()=>{await DB.rm(session.sid,this._id);UI.cl('edit-overlay');toast('Artikal obrisan','ok');},'🗑️ Obriši');}
@@ -2888,7 +2897,7 @@ const QtyEdit={
     const art=ArtDB.lookup(item.barcode);
     const isKg=art?.unit&&art.unit.toLowerCase()==='kg';
     const qty=val?(isKg?parseFloat(val):parseInt(val)):null;
-    await DB.upd(session.sid,this._id,{qty:(qty!==null&&!isNaN(qty))?qty:null});
+    await DB.upd(session.sid,this._id,{qty:(qty!==null&&!isNaN(qty))?qty:null,qtyUpdatedAt:new Date().toISOString()});
     UI.cl('qty-popup');
     toast('✓ Količina ažurirana','ok');
     // Osvježi DiscQty ako je otvoren
@@ -2966,13 +2975,31 @@ const AdvExport={
     const to=new Date();to.setDate(to.getDate()+30);
     document.getElementById('adv-from').value=from.toISOString().split('T')[0];
     document.getElementById('adv-to').value=to.toISOString().split('T')[0];
+    const si=document.getElementById('adv-sifra');if(si)si.value='';
+    const sh=document.getElementById('adv-sifra-hint');if(sh)sh.textContent='';
     document.getElementById('adv-exp-overlay').classList.add('open');
+  },
+
+  onSifraInput(){
+    const val=document.getElementById('adv-sifra').value.trim().toUpperCase();
+    const hint=document.getElementById('adv-sifra-hint');
+    if(!hint)return;
+    if(!val){hint.textContent='';return;}
+    if(!ArtDB._loaded){hint.textContent='';return;}
+    // Traži artikal po šifri (tačno ili contains)
+    const found=Object.values(ArtDB._data||{}).find(a=>a.code&&a.code.toUpperCase()===val);
+    const foundPartial=found||Object.values(ArtDB._data||{}).find(a=>a.code&&a.code.toUpperCase().includes(val));
+    if(found)hint.style.color='var(--accent)';
+    else if(foundPartial)hint.style.color='var(--warn)';
+    else hint.style.color='var(--danger)';
+    hint.textContent=found?'✓ '+found.name:foundPartial?'~ '+foundPartial.name+' (djelimično)':'✗ Šifra nije pronađena';
   },
 
   async _fetchData(){
     const dateFrom=document.getElementById('adv-from').value;
     const dateTo=document.getElementById('adv-to').value;
     const catFilter=document.getElementById('adv-cat').value;
+    const sifraRaw=(document.getElementById('adv-sifra')?.value||'').trim().toUpperCase();
     if(!dateFrom||!dateTo){toast('Izaberite datumski opseg!','err');return null;}
     if(dateFrom>dateTo){toast('Početni datum mora biti pre krajnjeg!','err');return null;}
     if(!ArtDB._loaded)await ArtDB.refreshFromFirebase(true).catch(()=>{});
@@ -2989,6 +3016,8 @@ const AdvExport={
         const art=ArtDB.lookup(i.barcode);
         const catCode=art?.category||'';
         if(catFilter!=='__all__'&&catCode!==catFilter)continue;
+        // Filter po šifri artikla
+        if(sifraRaw&&(!art?.code||art.code.toUpperCase()!==sifraRaw))continue;
         const catName=catCode?(CatDB.getName(catCode)||''):'';
         const catSort=catCode?catCode.padStart(5,'0'):'ZZZ';
         const sifraSort=(art?.code||'ZZZ').padStart(10,'0');
@@ -3001,7 +3030,8 @@ const AdvExport={
           hasDiscount:i.hasDiscount?'Da':'Ne',
           discountDate:i.discountDate?fmtD(i.discountDate):'',
           discountDays:String(i.discountDays||''),
-          qty:i.qty!=null?i.qty:null
+          qty:i.qty!=null?i.qty:null,
+          qtyUpdatedAt:i.qtyUpdatedAt||null
         });
       }
     }
@@ -3012,7 +3042,7 @@ const AdvExport={
       a.objekat.localeCompare(b.objekat)||
       a.expiryDate.localeCompare(b.expiryDate)
     );
-    return{rows,dateFrom,dateTo,catFilter};
+    return{rows,dateFrom,dateTo,catFilter,sifraFilter:sifraRaw};
   },
 
   async goExcel(){
@@ -3044,10 +3074,159 @@ const AdvExport={
     }catch(e){toast('Greška!','err');console.error(e);}
   },
 
+  async goScreen(){
+    toast('Učitavam podatke...');
+    try{
+      const res=await this._fetchData();
+      if(!res)return;
+      const{rows,dateFrom,dateTo,catFilter,sifraFilter}=res;
+      if(!rows.length){toast('Nema podataka za izabrani period!','err');return;}
+      this._rows=rows;this._meta={dateFrom,dateTo,catFilter,sifraFilter};
+      // Meta info
+      const catName=catFilter!=='__all__'?(CatDB.getName(catFilter)||catFilter):'Sve kategorije';
+      const sifraName=sifraFilter?(' · Šifra: '+sifraFilter):'';
+      document.getElementById('adv-screen-meta').textContent=
+        'Period: '+fmtD(dateFrom)+' — '+fmtD(dateTo)+'  ·  '+catName+sifraName+'  ·  Ukupno: '+rows.length+' stavki';
+      // Stats 48h
+      this._buildStats(rows);
+      // Build saldo
+      this._buildSaldo(rows);
+      // Build detalji
+      this._buildDetail(rows);
+      UI.cl('adv-exp-overlay');
+      document.getElementById('adv-screen-overlay').classList.add('open');
+    }catch(e){toast('Greška!','err');console.error(e);}
+  },
+
+  _buildStats(rows){
+    const el=document.getElementById('adv-screen-stats');
+    if(!el)return;
+    const now=Date.now();
+    const h48=48*60*60*1000;
+    // Svi jedinstveni objekti u rezultatu
+    const allObj=new Set(rows.map(r=>r.objekat));
+    const total=allObj.size;
+    // Objekti koji su ažurirali qty u poslednjih 48h
+    const updSet=new Set(
+      rows.filter(r=>r.qtyUpdatedAt&&(now-new Date(r.qtyUpdatedAt).getTime())<=h48)
+          .map(r=>r.objekat)
+    );
+    const updCount=updSet.size;
+    const notUpdCount=total-updCount;
+    const notUpdList=[...allObj].filter(o=>!updSet.has(o)).sort();
+    // Build HTML
+    const pct=total?Math.round(updCount/total*100):0;
+    const barW=pct+'%';
+    let html='<div style="background:var(--bg2);border:1.5px solid var(--border2);border-radius:10px;padding:10px 12px;">';
+    html+='<div style="font-size:.75rem;font-weight:700;color:var(--text2);margin-bottom:7px">📊 Ažuriranje količina — poslednjih 48h</div>';
+    // Progress bar
+    html+='<div style="background:var(--border2);border-radius:20px;height:8px;margin-bottom:8px;overflow:hidden">';
+    html+='<div style="background:var(--accent);height:100%;width:'+barW+';border-radius:20px;transition:width .4s"></div></div>';
+    // Stats row
+    html+='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px">';
+    html+='<span style="font-size:.8rem;color:#2E7D32;font-weight:700">✅ Ažurirali: '+updCount+'/'+total+' objekata</span>';
+    if(notUpdCount>0)html+='<span style="font-size:.8rem;color:var(--danger);font-weight:700">⏳ Nisu ažurirali: '+notUpdCount+' objekata</span>';
+    else html+='<span style="font-size:.8rem;color:#2E7D32">🎉 Svi objekti su ažurirali!</span>';
+    html+='</div>';
+    // Toggle dugme + skriveni spisak — koristimo globalnu funkciju da izbjegnemo quote probleme
+    if(notUpdCount>0){
+      window._notUpdList=notUpdList;
+      html+='<div style="margin-top:6px">';
+      html+='<button id="notupd-btn" onclick="AdvExport.toggleNotUpd()" style="font-size:.74rem;font-weight:700;color:var(--danger);background:transparent;border:1.5px solid var(--danger);border-radius:8px;padding:4px 12px;cursor:pointer">&#9660; Objekti koji nisu ažurirali ('+notUpdCount+')</button>';
+      html+='<div id="notupd-list" style="display:none;margin-top:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;max-height:200px;overflow-y:auto">';
+      html+=notUpdList.map((o,i)=>'<div style="font-size:.77rem;padding:3px 0;border-bottom:1px solid var(--border2);color:var(--text)'+(i===notUpdList.length-1?';border-bottom:none':'')+'">'+esc(o)+'</div>').join('');
+      html+='</div></div>';
+    }
+    html+='</div>';
+    el.innerHTML=html;
+    el.style.display='';
+  },
+
+  toggleNotUpd(){
+    const list=document.getElementById('notupd-list');
+    const btn=document.getElementById('notupd-btn');
+    if(!list||!btn)return;
+    const isHidden=list.style.display==='none';
+    list.style.display=isHidden?'':'none';
+    btn.innerHTML=isHidden?'&#9650; Sakrij spisak':'&#9660; Objekti koji nisu ažurirali ('+(window._notUpdList||[]).length+')';
+  },
+
+  _buildSaldo(rows){
+    // Grupiši po šifri (article code), sumira qty
+    const map={};
+    rows.forEach(r=>{
+      const key=r.sifra||r.barcode;
+      if(!map[key])map[key]={sifra:r.sifra,naziv:r.naziv,jm:r.jm,
+        objekti:new Set(),qtySum:0,qtyCount:0,totalRows:0};
+      map[key].objekti.add(r.objekat);
+      map[key].totalRows++;
+      if(r.qty!=null){map[key].qtySum+=r.qty;map[key].qtyCount++;
+          if(r.qtyUpdatedAt&&(!map[key].lastUpdated||r.qtyUpdatedAt>map[key].lastUpdated))
+            map[key].lastUpdated=r.qtyUpdatedAt;}
+    });
+    const entries=Object.values(map).sort((a,b)=>
+      (a.sifra||'ZZZ').localeCompare(b.sifra||'ZZZ'));
+    const withQty=entries.filter(e=>e.qtyCount>0);
+    const tbody=document.getElementById('saldo-tbody');
+    const emptyEl=document.getElementById('saldo-empty');
+    if(!withQty.length){
+      tbody.innerHTML='';
+      if(emptyEl)emptyEl.style.display='';
+      return;
+    }
+    if(emptyEl)emptyEl.style.display='none';
+    tbody.innerHTML=withQty.map((e,idx)=>{
+      const bg=idx%2===0?'':'background:var(--bg2)';
+      const qStr=e.qtySum%1===0?e.qtySum:e.qtySum.toFixed(2);
+      return`<tr style="${bg}">
+        <td style="font-size:.75rem;color:var(--text3)">${e.sifra||'—'}</td>
+        <td style="max-width:180px">${e.naziv||'—'}</td>
+        <td style="text-align:center">${e.jm}</td>
+        <td style="text-align:center">${e.objekti.size}</td>
+        <td style="text-align:center;font-weight:700;color:var(--accent)">${qStr}${e.jm?' '+e.jm:''}</td>
+      </tr>`;
+    }).join('');
+    // Grand total
+    const totalQ=withQty.reduce((s,e)=>s+e.qtySum,0);
+    const qStr=totalQ%1===0?totalQ:totalQ.toFixed(2);
+    tbody.innerHTML+=`<tr style="border-top:2px solid var(--accent)">
+      <td colspan="4" style="font-weight:700;font-size:.78rem;color:var(--text2)">UKUPNO</td>
+      <td style="text-align:center;font-weight:700;font-size:.9rem;color:var(--accent)">${qStr}</td>
+    </tr>`;
+  },
+
+  _buildDetail(rows){
+    const tbody=document.getElementById('detail-tbody');
+    // Grupiši po kategoriji+šifri za prikaz — ali prikaži sve redove
+    let prevCat='__none__';
+    tbody.innerHTML=rows.map((r,idx)=>{
+      let catBar='';
+      if(r.catSort!==prevCat){
+        prevCat=r.catSort;
+        const cLabel=(r.catSort.startsWith('ZZZ')?'':r.catSort.replace(/^0+/,'')+' — ')+(r.kategorija||'Bez kategorije');
+        catBar=`<tr><td colspan="8" class="screen-detail-cat">${cLabel}</td></tr>`;
+      }
+      const bg=idx%2===0?'':'background:var(--bg2)';
+      const qty=r.qty!=null?`<strong>${r.qty}${r.jm?' '+r.jm:''}</strong>`:'<span style="color:var(--text3)">—</span>';
+      const disc=r.hasDiscount==='Da'?`<span style="color:var(--warn);font-weight:700">Da</span>`:'Ne';
+      return catBar+`<tr style="${bg}">
+        <td style="font-size:.72rem;color:var(--text3)">${r.sifra||'—'}</td>
+        <td style="max-width:140px;font-size:.78rem">${r.naziv||'—'}</td>
+        <td style="text-align:center;font-size:.75rem">${r.jm}</td>
+        <td style="font-size:.78rem">${r.objekat}</td>
+        <td style="font-family:monospace;font-size:.72rem">${r.barcode}</td>
+        <td style="text-align:center;font-size:.78rem;white-space:nowrap">${fmtD(r.expiryDate)}</td>
+        <td style="text-align:center;font-size:.78rem">${disc}</td>
+        <td style="text-align:center;font-size:.78rem">${qty}</td>
+        <td style="text-align:center;font-size:.7rem;color:${r.qtyUpdatedAt?'var(--accent)':'var(--text3)'}">${r.qtyUpdatedAt?fmtDT(r.qtyUpdatedAt):'<i>nije ažur.</i>'}</td>
+      </tr>`;
+    }).join('');
+  },
+
   async generatePdf(){
     const ok=await ensureJsPDF();if(!ok)return;
     const rows=this._rows;
-    const{dateFrom,dateTo,catFilter}=this._meta;
+    const{dateFrom,dateTo,catFilter,sifraFilter}=this._meta;
     const cols={
       sifra:   document.getElementById('pc-sifra').checked,
       naziv:   document.getElementById('pc-naziv').checked,
@@ -3060,7 +3239,8 @@ const AdvExport={
       snizenje:document.getElementById('pc-snizenje').checked,
       datsniz: document.getElementById('pc-datsniz').checked,
       dana:    document.getElementById('pc-dana').checked,
-      qty:     document.getElementById('pc-qty')?.checked||false
+      qty:     document.getElementById('pc-qty')?.checked||false,
+      qtyupd:  document.getElementById('pc-qtyupd')?.checked||false
     };
     const colDef=[
       {key:'sifra',    label:'Šifra',       w:14, fn:r=>r.sifra},
@@ -3074,7 +3254,8 @@ const AdvExport={
       {key:'snizenje', label:'Sniženje',     w:14, halign:'center',fn:r=>r.hasDiscount},
       {key:'datsniz',  label:'Dat.sniz.',    w:18, halign:'center',fn:r=>r.discountDate},
       {key:'dana',     label:'Dana',         w:10, halign:'center',fn:r=>r.discountDays},
-      {key:'qty',      label:'Količina',     w:14, halign:'center',fn:r=>r.qty!=null?String(r.qty):''}
+      {key:'qty',      label:'Količina',     w:14, halign:'center',fn:r=>r.qty!=null?String(r.qty):''},
+      {key:'qtyupd',   label:'Qty ažur.',    w:22, halign:'center',fn:r=>r.qtyUpdatedAt?fmtDT(r.qtyUpdatedAt):'—'}
     ].filter(c=>cols[c.key]);
     if(colDef.length<2){toast('Izaberite najmanje 2 kolone!','err');return;}
     toast('Generisujem PDF...');
@@ -3086,12 +3267,13 @@ const AdvExport={
       const PW=297;const PH=210;const MG=8;const CW=PW-MG*2;
       let pageNum=1;
       const catFilterName=catFilter!=='__all__'?(CatDB.getName(catFilter)||catFilter):'Sve kategorije';
+      const sifraInfo=sifraFilter?' · Šifra: '+sifraFilter:'';
       const addHdr=()=>{
         doc.setFillColor(...BROWN);doc.rect(0,0,PW,13,'F');
         doc.setTextColor(255,255,255);doc.setFontSize(9);doc.setFont('helvetica','bold');
         doc.text('KNJIGA ROKOVA — SUPER ADMIN',MG,5.5);
         doc.setFontSize(7);doc.setFont('helvetica','normal');
-        doc.text('Period: '+fmtD(dateFrom)+' — '+fmtD(dateTo)+'  |  '+catFilterName+'  |  Generisano: '+fmtD(today()),MG,10.5);
+        doc.text('Period: '+fmtD(dateFrom)+' — '+fmtD(dateTo)+'  |  '+catFilterName+sifraInfo+'  |  Generisano: '+fmtD(today()),MG,10.5);
         doc.text('Str. '+pageNum,PW-MG,10.5,{align:'right'});
       };
       addHdr();let y=16;
@@ -3103,6 +3285,46 @@ const AdvExport={
         if(c.halign)colStyles[idx].halign=c.halign;
         if(c.font)colStyles[idx].font=c.font;
       });
+      // ── SALDO sekcija ──────────────────────────────────────
+      const saldoMap={};
+      rows.forEach(r=>{
+        const key=r.sifra||r.barcode;
+        if(!saldoMap[key])saldoMap[key]={sifra:r.sifra,naziv:r.naziv,jm:r.jm,
+          objekti:new Set(),qtySum:0,qtyCount:0};
+        saldoMap[key].objekti.add(r.objekat);
+        if(r.qty!=null){saldoMap[key].qtySum+=r.qty;saldoMap[key].qtyCount++;}
+      });
+      const saldoEntries=Object.values(saldoMap)
+        .filter(e=>e.qtyCount>0)
+        .sort((a,b)=>(a.sifra||'').localeCompare(b.sifra||''));
+      if(saldoEntries.length){
+        chkPg(20);
+        doc.setFillColor(245,235,218);doc.rect(MG,y,CW,6,'F');
+        doc.setTextColor(...TDARK);doc.setFontSize(8.5);doc.setFont('helvetica','bold');
+        doc.text('SALDO — Ukupno na stanju (stavke sa unesenom količinom)',MG+2,y+4.2);y+=6;
+        const saldoRows=saldoEntries.map(e=>{
+          const q=e.qtySum%1===0?String(e.qtySum):(e.qtySum.toFixed(2));
+          const upd=e.lastUpdated?fmtDT(e.lastUpdated):'—';
+          return[e.sifra||'—',e.naziv||'—',e.jm,String(e.objekti.size),q+(e.jm?' '+e.jm:''),upd];
+        });
+        const totalQ=saldoEntries.reduce((s,e)=>s+e.qtySum,0);
+        const tQ=totalQ%1===0?String(totalQ):totalQ.toFixed(2);
+        saldoRows.push(['','UKUPNO','','',tQ,'']);
+        doc.autoTable({startY:y,margin:{left:MG,right:MG},
+          head:[['Šifra','Naziv artikla','JM','Br.obj.','Ukupna količina','Posljednje ažur.']],
+          body:saldoRows,theme:'plain',
+          styles:{fontSize:7,cellPadding:1.2,textColor:TDARK,lineColor:LBROWN,lineWidth:0.15},
+          headStyles:{fillColor:BROWN,textColor:[255,255,255],fontStyle:'bold',fontSize:7},
+          alternateRowStyles:{fillColor:CREAM},
+          columnStyles:{0:{cellWidth:18},1:{cellWidth:58},2:{cellWidth:9,halign:'center'},3:{cellWidth:12,halign:'center'},4:{cellWidth:22,halign:'center',fontStyle:'bold'},5:{cellWidth:28,halign:'center'}},
+          didDrawPage:(data)=>{pageNum++;addHdr();data.settings.margin.top=17;}
+        });
+        y=doc.lastAutoTable.finalY+4;
+        // Separator
+        doc.setDrawColor(...LBROWN);doc.setLineWidth(0.3);doc.line(MG,y,MG+CW,y);y+=4;
+      }
+
+      // ── DETALJI po kategorijama ──────────────────────────────
       // Grupiši po kategoriji
       let curCatSort=null;let curCatLabel='';let tableRows=[];
       const flush=()=>{
@@ -3130,7 +3352,8 @@ const AdvExport={
       doc.setTextColor(...GRAY);doc.setFontSize(6.5);doc.setFont('helvetica','normal');
       doc.text('Aman maloprodaja — Knjiga Rokova — Ukupno: '+rows.length+' stavki',PW/2,PH-3,{align:'center'});
       const catSufx=catFilter!=='__all__'?'_kat'+catFilter:'';
-      doc.save('izvoz_super_'+dateFrom+'_'+dateTo+catSufx+'.pdf');
+      const sifraSufx=sifraFilter?'_sif'+sifraFilter:'';
+      doc.save('izvoz_super_'+dateFrom+'_'+dateTo+catSufx+sifraSufx+'.pdf');
       UI.cl('adv-pdf-overlay');
       toast('✓ PDF preuzet ('+rows.length+' stavki)','ok');
     }catch(e){toast('Greška PDF: '+e.message,'err');console.error(e);}
@@ -3688,11 +3911,13 @@ function _resumeSession(){
   <div class="frow"><label class="flbl">Datum isteka — OD</label><input type="date" id="adv-from"></div>
   <div class="frow"><label class="flbl">Datum isteka — DO</label><input type="date" id="adv-to"></div>
   <div class="frow"><label class="flbl">Kategorija (robna grupa)</label><select id="adv-cat"><option value="__all__">Sve kategorije</option></select></div>
-  <div class="adv-info">📋 Obuhvata sve terene i sve prodavnice<br>🔢 Sortiranje: Kategorija → Šifra → Objekat → Datum isteka<br>📊 Kolone: Teren, Prodavnica, Šifra, Naziv, JM, Kategorija, Barkod, Datum isteka, Sniženje, Dat.sniženja, Dana</div>
+  <div class="frow"><label class="flbl" style="display:flex;align-items:center;gap:6px">🔖 Šifra artikla <span style="font-weight:400;color:var(--text3);font-size:.72rem">(opciono — prazno = svi)</span></label><div class="adv-sifra-wrap"><input type="text" id="adv-sifra" placeholder="npr. 042145" maxlength="20" style="font-size:.95rem;font-weight:700;letter-spacing:.03em" oninput="AdvExport.onSifraInput()"><div class="adv-sifra-hint" id="adv-sifra-hint"></div></div></div>
+  <div class="adv-info">📋 Obuhvata sve terene i sve prodavnice<br>🔢 Sortiranje: Kategorija → Šifra → Objekat → Datum isteka<br>📊 Kolone: Teren, Prodavnica, Šifra, Naziv, JM, Kategorija, Barkod, Datum isteka, Sniženje, Dat.sniženja, Dana, Količina</div>
   <div class="btn-row">
-    <button class="btn btn-primary" style="flex:1" onclick="AdvExport.goExcel()">📊 Izvoz Excel</button>
-    <button class="btn" style="flex:1;background:var(--danger);color:#fff" onclick="AdvExport.goPdf()">📄 Izvoz PDF</button>
+    <button class="btn btn-primary" style="flex:1" onclick="AdvExport.goExcel()">📊 Excel</button>
+    <button class="btn" style="flex:1;background:var(--danger);color:#fff" onclick="AdvExport.goPdf()">📄 PDF</button>
   </div>
+  <button class="btn btn-full mt8" style="background:var(--accent-bg);color:var(--accent);border:1.5px solid var(--accent-border);font-weight:700" onclick="AdvExport.goScreen()">👁 Prikaži na ekranu</button>
   <button class="btn btn-ghost btn-full mt8" onclick="UI.cl('adv-exp-overlay')">Zatvori</button>
 </div>
 </div>
@@ -3715,6 +3940,7 @@ function _resumeSession(){
     <label class="pdf-col-chk"><input type="checkbox" id="pc-datsniz"> Dat. sniženja</label>
     <label class="pdf-col-chk"><input type="checkbox" id="pc-dana"> Dana sniženja</label>
     <label class="pdf-col-chk"><input type="checkbox" id="pc-qty" checked> Količina</label>
+    <label class="pdf-col-chk"><input type="checkbox" id="pc-qtyupd" checked> Qty ažurirano</label>
   </div>
   <p style="font-size:.72rem;color:var(--text3);margin-bottom:10px">💡 Kategorija je uvijek vidljiva kao naslov grupe. Opcija "Kategorija u redu" dodaje je i kao kolonu.</p>
   <div class="btn-row">
@@ -3765,5 +3991,53 @@ function _resumeSession(){
   <button class="btn btn-ghost btn-full mt8" onclick="UI.cl('discqty-overlay')">Zatvori</button>
 </div>
 </div>
+<!-- NAPREDNI IZVOZ — PRIKAZ NA EKRANU -->
+<div class="overlay" id="adv-screen-overlay" style="z-index:700">
+<div class="modal modal-wide" style="max-height:92vh;overflow-y:auto">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+    <div class="modal-title" style="margin-bottom:0">👁 Pregled na ekranu</div>
+    <button class="btn btn-ghost" style="padding:4px 12px;font-size:.75rem" onclick="UI.cl('adv-screen-overlay')">✕ Zatvori</button>
+  </div>
+  <div id="adv-screen-meta" style="font-size:.72rem;color:var(--text3);margin-bottom:8px"></div>
+  <div id="adv-screen-stats" style="display:none;margin-bottom:10px"></div>
+
+  <div class="screen-section-title">📦 Saldo — ukupno na stanju</div>
+  <div style="overflow-x:auto">
+    <table class="saldo-table" id="saldo-table">
+      <thead><tr>
+        <th>Šifra</th><th>Naziv artikla</th><th style="text-align:center">JM</th>
+        <th style="text-align:center">Br.obj.</th><th style="text-align:center">Ukupna kol.</th>
+        <th style="text-align:center">Posljednje ažur.</th>
+      </tr></thead>
+      <tbody id="saldo-tbody"></tbody>
+    </table>
+  </div>
+  <div id="saldo-empty" style="display:none;font-size:.77rem;color:var(--text3);padding:8px 4px">
+    Nema stavki sa unesenom količinom za izabrani period.
+  </div>
+
+  <div class="screen-section-title" style="margin-top:16px">📋 Detalji po objektima</div>
+  <div style="overflow-x:auto">
+    <table class="saldo-table" id="detail-table">
+      <thead><tr>
+        <th>Šifra</th><th>Naziv</th><th style="text-align:center">JM</th>
+        <th>Objekat</th><th>Barkod</th>
+        <th style="text-align:center">Dat.isteka</th>
+        <th style="text-align:center">Sniženje</th>
+        <th style="text-align:center">Količina</th>
+        <th style="text-align:center">Qty ažurirano</th>
+      </tr></thead>
+      <tbody id="detail-tbody"></tbody>
+    </table>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-top:12px">
+    <button class="btn btn-primary" style="flex:1" onclick="AdvExport.goExcel()">📊 Izvoz Excel</button>
+    <button class="btn" style="flex:1;background:var(--danger);color:#fff" onclick="AdvExport.goPdf()">📄 Izvoz PDF</button>
+  </div>
+</div>
+</div>
+
+
 </body>
 </html>
