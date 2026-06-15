@@ -1396,6 +1396,7 @@ const CtrlMode={
           +'<div style="flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px">'
           +(item.hasDiscount?'<span class="badge badge-d">-'+item.discountDays+'d</span>':'<span class="badge badge-n">Bez</span>')
           +qtyBadge
+          +(item.qtyUpdatedAt?'<div style="font-size:.62rem;color:var(--accent);text-align:right;margin-top:2px">↻ '+fmtDT(item.qtyUpdatedAt)+'</div>':'')
           +'</div></div>';
       }).join('');
       html='<div class="ctrl-result found">'
@@ -1653,7 +1654,8 @@ const Steps={
     const _qArt=ArtDB.lookup(cBC);
     const _qIsKg=_qArt?.unit&&_qArt.unit.toLowerCase()==='kg';
     const _qty=_qv?(_qIsKg?parseFloat(_qv):parseInt(_qv)):null;
-    const item={id:uid(),barcode:cBC,expiryDate:cDate,hasDiscount:hd,discountDays:dd,discountDate:dd2,createdAt:new Date().toISOString(),qty:(_qty!==null&&!isNaN(_qty))?_qty:null};
+    const _qtyVal=(_qty!==null&&!isNaN(_qty))?_qty:null;
+    const item={id:uid(),barcode:cBC,expiryDate:cDate,hasDiscount:hd,discountDays:dd,discountDate:dd2,createdAt:new Date().toISOString(),qty:_qtyVal,qtyUpdatedAt:_qtyVal!==null?new Date().toISOString():null};
     try{
       await DB.add(session.sid,item);
       toast('✓ Artikal '+cBC+' sacuvan!','ok');
@@ -1764,6 +1766,7 @@ const List={
           <div class="item-dt">${fmtD(item.expiryDate)}</div>
           ${item.hasDiscount?`<span class="badge badge-d">-${item.discountDays}d</span>`:`<span class="badge badge-n">Bez</span>`}
           ${item.qty!=null?`<span class="badge badge-qty" onclick="QtyEdit.open('${item.id}',event)">📦 ${item.qty}${artInfo?.unit?" "+artInfo.unit:""}</span>`:`<span class="badge badge-qty-empty" onclick="QtyEdit.open('${item.id}',event)">📦+</span>`}
+          ${item.qtyUpdatedAt?`<div style="font-size:.6rem;color:var(--accent);text-align:right;margin-top:1px">↻ ${fmtDT(item.qtyUpdatedAt)}</div>`:''}
         </div>
       </div>`;
     }).join('');
@@ -2546,20 +2549,37 @@ const StoreStats={
     const todN=sitems.filter(i=>i.expiryDate===t).length;
     const expN=sitems.filter(i=>i.expiryDate<t).length;
 
-    // Tab 1: Lista stavki (readonly)
+    // Tab 1: Lista stavki — sortirano po unosu DESC, limit 50, sa šifrom/nazivom/qty/qtyUpdatedAt
+    const LIMIT=50;
+    const sortedItems=[...sitems].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+    const displayItems=sortedItems.slice(0,LIMIT);
+    const hiddenCount=sitems.length-displayItems.length;
     const listHTML=sitems.length
-      ?sitems.sort((a,b)=>a.expiryDate.localeCompare(b.expiryDate)).map(item=>{
+      ?displayItems.map(item=>{
           let cls='item-row ro';
           if(item.expiryDate<t)cls+=' expired';else if(item.expiryDate===t)cls+=' expiring';
+          const art=ArtDB.lookup(item.barcode);
+          const artLine=art?`<div style="font-size:.7rem;color:var(--accent);font-weight:600;margin-top:1px">&#128230; ${esc(art.name)}${art.code?` <span style="font-weight:400;color:var(--text3)">&middot; ${esc(art.code)}</span>`:''}</div>`:'';
           const unosT=item.createdAt?`<div style="font-size:.63rem;color:var(--text3)">🕐 ${fmtDT(item.createdAt)}</div>`:'';
+          const qtyBadge=item.qty!=null
+            ?`<span class="badge badge-qty" style="cursor:default">📦 ${item.qty}${art?.unit?' '+art.unit:''}</span>`
+            :`<span class="badge badge-qty-empty" style="cursor:default">📦—</span>`;
+          const qtyUpd=item.qtyUpdatedAt?`<div style="font-size:.6rem;color:var(--accent);text-align:right">↻ ${fmtDT(item.qtyUpdatedAt)}</div>`:'';
           return`<div class="${cls}">
-            <div style="flex:1;min-width:0"><div class="item-bc">${esc(item.barcode)}</div>${unosT}</div>
+            <div style="flex:1;min-width:0">
+              <div class="item-bc">${esc(item.barcode)}</div>
+              ${artLine}
+              ${unosT}
+            </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0">
               <div class="item-dt">${fmtD(item.expiryDate)}</div>
               ${item.hasDiscount?`<span class="badge badge-d">-${item.discountDays}d</span>`:`<span class="badge badge-n">Bez</span>`}
+              ${qtyBadge}
+              ${qtyUpd}
             </div>
           </div>`;
         }).join('')
+        +(hiddenCount>0?`<div style="text-align:center;padding:10px;font-size:.75rem;color:var(--text3)">Prikazano poslednjih ${LIMIT} od ukupno ${sitems.length} stavki</div>`:'')
       :'<div class="empty-state"><div class="empty-ico">📦</div>Nema stavki</div>';
 
     // Tab 2: Statistika
@@ -2581,7 +2601,7 @@ const StoreStats={
       <div class="modal-title">🏪 ${esc(sname)}</div>
       <div style="font-size:.72rem;color:var(--text3);margin-bottom:10px">${esc(semail||'')} &nbsp;|&nbsp; ${sitems.length} stavki ukupno</div>
       <div class="store-popup-tabs">
-        <button class="store-popup-tab on" id="_tab_list" onclick="StoreStats._tab('list')">📋 Stavke (${sitems.length})</button>
+        <button class="store-popup-tab on" id="_tab_list" onclick="StoreStats._tab('list')">📋 Stavke (${Math.min(sitems.length,50)}${sitems.length>50?"/"+sitems.length:""})</button>
         <button class="store-popup-tab" id="_tab_stats" onclick="StoreStats._tab('stats')">📊 Statistika</button>
       </div>
       <div id="_panel_list" style="max-height:340px;overflow-y:auto">${listHTML}</div>
