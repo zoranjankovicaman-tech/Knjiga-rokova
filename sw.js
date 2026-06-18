@@ -1,7 +1,7 @@
-// Knjiga Rokova — Service Worker v3
+// Knjiga Rokova — Service Worker v4
 // Network-first za HTML, cache-first za ostale resurse
 
-const CACHE = 'knjiga-rokova-v3';
+const CACHE = 'knjiga-rokova-v4';
 const STATIC = [
   '/Knjiga-rokova/manifest.json',
   '/Knjiga-rokova/icon-192.png',
