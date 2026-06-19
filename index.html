@@ -24,7 +24,8 @@ body{font-family:var(--ff-b);background:var(--bg);color:var(--text);min-height:1
 
 /* LOADING */
 .load-screen{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;}
-.load-ico{font-size:3rem;animation:pulse 1.5s ease infinite;}
+.load-ico{width:84px;height:84px;animation:pulse 1.5s ease infinite;}
+.load-ico img{width:100%;height:100%;border-radius:18px;box-shadow:0 4px 16px rgba(0,0,0,.15);}
 @keyframes pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.08);}}
 .load-title{font-family:var(--ff-h);font-size:1.3rem;color:var(--accent);}
 .spinner{width:30px;height:30px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
@@ -34,7 +35,8 @@ body{font-family:var(--ff-b);background:var(--bg);color:var(--text);min-height:1
 .login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:18px;}
 .login-card{background:var(--card);border:1px solid var(--border2);border-radius:20px;padding:26px 22px;width:100%;max-width:370px;box-shadow:0 6px 30px var(--shadow2);}
 .login-logo{text-align:center;margin-bottom:18px;}
-.login-logo .ico{font-size:2rem;background:var(--accent-bg);width:54px;height:54px;border-radius:13px;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;border:1px solid var(--accent-border);}
+.login-logo .ico{width:64px;height:64px;border-radius:15px;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;overflow:hidden;box-shadow:0 3px 12px var(--shadow2);}
+.login-logo .ico img{width:100%;height:100%;object-fit:cover;}
 .login-logo h1{font-family:var(--ff-h);font-size:1.25rem;color:var(--accent);}
 .login-logo p{font-size:.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-top:2px;}
 .role-btns{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
@@ -492,7 +494,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 <!-- LOADING -->
 <div id="page-loading" class="page active">
 <div class="load-screen">
-  <div class="load-ico">📋</div>
+  <div class="load-ico"><img src="icon-192.png" alt="Knjiga Rokova"></div>
   <div class="load-title">Knjiga Rokova</div>
   <div class="spinner"></div>
   <div style="font-size:.78rem;color:var(--text3)" id="load-msg">Učitavam konfiguraciju...</div>
@@ -504,7 +506,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 <div class="login-wrap">
 <div class="login-card">
   <div class="login-logo">
-    <div class="ico">📋</div>
+    <div class="ico"><img src="icon-192.png" alt="Knjiga Rokova"></div>
     <h1>Knjiga Rokova</h1>
     <p>Aman maloprodaja</p>
   </div>
