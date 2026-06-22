@@ -486,6 +486,9 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 .cat-table td{border-bottom:1px solid var(--border2);padding:7px 10px;font-size:.82rem;}
 .cat-table tr:hover td{background:var(--accent-bg);}
 .cat-chip{display:inline-block;padding:2px 8px;border-radius:12px;font-size:.68rem;font-weight:700;background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent-border);margin-right:4px;}
+.disc-rule-info{font-size:.72rem;color:var(--accent);font-weight:600;margin-top:2px;}
+.disc-skip-note{font-size:.68rem;color:var(--text3);background:var(--bg2);border-radius:7px;padding:4px 8px;margin-top:4px;display:inline-flex;align-items:center;gap:5px;}
+.disc-skip-note button{font-size:.65rem;color:var(--accent);background:none;border:none;text-decoration:underline;cursor:pointer;padding:0;}
 .art-unit{font-size:.68rem;color:var(--text3);font-weight:600;margin-left:4px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:1px 5px;}
 </style>
 </head>
@@ -611,6 +614,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
       <div id="s2-art-info" style="display:none;background:var(--accent-bg);border:1.5px solid var(--accent-border);border-radius:9px;padding:8px 12px;margin-bottom:8px">
         <div style="font-weight:700;font-size:.85rem;color:var(--accent)" id="s2-art-name"></div>
         <div style="font-size:.72rem;color:var(--text3);margin-top:2px" id="s2-art-code"></div>
+        <div id="s2-disc-rule" class="disc-rule-info" style="display:none"></div>
       </div>
       <div class="step-label">Korak 2 — Datum isteka roka</div>
       <div class="date-input-wrap" style="margin-bottom:10px">
@@ -691,6 +695,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
     <button class="hbtn" id="sa-undo-btn" onclick="Undo.prompt()" style="display:none;background:var(--danger-bg);border-color:var(--danger);color:var(--danger)">↩️ <span>Poništi</span></button>
     <button class="hbtn" onclick="ArtDB.openPanel()">📚 <span>Artikli</span></button>
     <button class="hbtn" onclick="CatDB.openPanel()">🏷️ <span>Kategorije</span></button>
+    <button class="hbtn" onclick="DiscRules.openPanel()">💸 <span>Sniženja</span></button>
     <button class="hbtn" onclick="UI.openAdminExport()">📊 <span>Izvoz</span></button>
     <button class="hbtn" onclick="UI.openFullBackup()">🗄️ <span>Backup</span></button>
     <button class="hbtn ico" onclick="UI.toggleTheme()">🌙</button>
@@ -779,6 +784,44 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
     </div>
     <button class="btn btn-ghost btn-full mt8" onclick="document.getElementById('cat-overlay').classList.remove('open')">Zatvori</button>
   </div>
+
+<!-- PRAVILA SNIŽENJA — DiscRules -->
+<div id="disc-overlay" class="overlay" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal-wide" style="max-height:90vh;display:flex;flex-direction:column">
+    <div class="modal-title">💸 Pravila sniženja po šifri</div>
+    <p style="font-size:.75rem;color:var(--text2);margin-bottom:8px">Procenat i broj dana pred istek roka — koristi se za automatsko predlaganje pri unosu.</p>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="DiscRules.showAdd()">+ Dodaj pravilo</button>
+      <button class="btn btn-primary" onclick="DiscRules.triggerImport()">&#128229; Import Excel</button>
+      <button class="btn btn-ghost" onclick="DiscRules.refresh()">&#128260; Osvježi</button>
+      <input type="file" id="disc-import-file" accept=".xlsx,.xls" style="display:none" onchange="DiscRules.importExcel(this)">
+    </div>
+    <div id="disc-import-status" style="margin-bottom:8px;font-size:.78rem;color:var(--text3);min-height:16px"></div>
+    <!-- Forma za dodavanje/izmjenu -->
+    <div id="disc-form" style="display:none;background:var(--accent-bg);border:1.5px solid var(--accent-border);border-radius:10px;padding:12px;margin-bottom:12px">
+      <div style="font-weight:700;font-size:.82rem;color:var(--accent);margin-bottom:8px" id="disc-form-title">Novo pravilo</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+        <input type="text" id="disc-code-inp" placeholder="Šifra artikla" style="width:120px" maxlength="20">
+        <input type="number" id="disc-pct-inp" placeholder="% sniženja" style="width:110px" min="1" max="99">
+        <input type="number" id="disc-days-inp" placeholder="Dana pred istek" style="width:130px" min="1" max="365">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="DiscRules.saveForm()">💾 Sačuvaj</button>
+        <button class="btn btn-ghost" onclick="DiscRules.hideForm()">Otkaži</button>
+      </div>
+    </div>
+    <!-- Pretraga -->
+    <input type="text" id="disc-search" placeholder="🔍 Pretraži po šifri..." style="margin-bottom:10px" oninput="DiscRules.search(this.value)">
+    <!-- Tabela -->
+    <div style="flex:1;overflow-y:auto;max-height:380px">
+      <table class="cat-table">
+        <thead><tr><th>Šifra</th><th style="text-align:center">% sniženja</th><th style="text-align:center">Dana pred istek</th><th style="width:80px">Akcija</th></tr></thead>
+        <tbody id="disc-tbody"><tr><td colspan="4" style="text-align:center;color:var(--text3);padding:20px">Učitavam...</td></tr></tbody>
+      </table>
+    </div>
+    <button class="btn btn-ghost btn-full mt8" onclick="document.getElementById('disc-overlay').classList.remove('open')">Zatvori</button>
+  </div>
+</div>
 </div>
 <div id="art-overlay" class="overlay" onclick="if(event.target===this)this.classList.remove('open')">
   <div class="modal-wide" style="max-height:90vh;display:flex;flex-direction:column">
@@ -851,6 +894,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   <div class="frow"><label class="flbl">Datum isteka</label><input type="date" id="ed-date"></div>
   <div class="frow"><label class="flbl">Sniženje</label><select id="ed-disc" onchange="Edit.togDays()"><option value="0">Ne</option><option value="1">Da</option></select></div>
   <div class="frow hidden" id="ed-drow"><label class="flbl">Broj dana</label><select id="ed-days"><option value="5">5 dana</option><option value="7">7 dana</option><option value="10">10 dana</option><option value="15">15 dana</option><option value="20">20 dana</option><option value="30">30 dana</option></select></div>
+  <div class="frow hidden" id="ed-prow"><label class="flbl">% sniženja <span style="font-weight:400;color:var(--text3);font-size:.72rem">(opciono)</span></label><input type="number" id="ed-pct" min="1" max="99" placeholder="npr. 20" style="width:110px"></div>
   <div class="frow"><label class="flbl" style="display:flex;align-items:center;gap:6px">📦 Količina <span style="font-weight:400;color:var(--text3);font-size:.72rem">(opciono)</span></label><div style="display:flex;align-items:center;gap:8px"><input type="number" id="ed-qty" min="0" placeholder="—" inputmode="decimal" style="width:110px;font-size:1rem;font-weight:700;text-align:center"><span id="ed-qty-unit" style="font-size:.82rem;font-weight:700;color:var(--accent)"></span></div></div>
   <hr class="divider">
   <div class="btn-row">
@@ -1396,7 +1440,7 @@ const CtrlMode={
           +uT
           +'</div>'
           +'<div style="flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px">'
-          +(item.hasDiscount?'<span class="badge badge-d">-'+item.discountDays+'d</span>':'<span class="badge badge-n">Bez</span>')
+          +(item.hasDiscount?'<span class="badge badge-d">-'+item.discountDays+'d'+(item.discountPct?' &middot; '+item.discountPct+'%':'')+'</span>':'<span class="badge badge-n">Bez</span>')
           +qtyBadge
           +(item.qtyUpdatedAt?'<div style="font-size:.62rem;color:var(--accent);text-align:right;margin-top:2px">↻ '+fmtDT(item.qtyUpdatedAt)+'</div>':'')
           +'</div></div>';
@@ -1480,13 +1524,22 @@ const Steps={
     // Prikaži naziv u koraku 2
     const _artS2=ArtDB.lookup(v);
     const _s2info=document.getElementById('s2-art-info');
+    const _s2rule=document.getElementById('s2-disc-rule');
     if(_s2info){
       if(_artS2&&_artS2.name){
         document.getElementById('s2-art-name').textContent='\u{1F4E6} '+_artS2.name;
         document.getElementById('s2-art-code').textContent=_artS2.code?'Šifra: '+_artS2.code:'';
         _s2info.style.display='block';
+        const _rulePrev=_artS2.code?DiscRules.lookup(_artS2.code):null;
+        if(_s2rule){
+          if(_rulePrev){
+            _s2rule.textContent='\u{1F3F7}\uFE0F Sniženje: '+_rulePrev.pct+'% / '+_rulePrev.days+' dana pred istek (automatski)';
+            _s2rule.style.display='block';
+          } else { _s2rule.style.display='none'; }
+        }
       } else {
         _s2info.style.display='none';
+        if(_s2rule)_s2rule.style.display='none';
       }
     }
     const _td=today();document.getElementById('exp-date').value=_td;this.initPCDate(_td);
@@ -1500,6 +1553,13 @@ const Steps={
     const v=document.getElementById('exp-date').value;
     if(!v){toast('Unesite datum! (dd/mm/yyyy)','err');return;}
     cDate=v;['chip-dt','chip-dt2'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=fmtD(v);});
+    // ── Auto-skip: ako šifra artikla ima pravilo sniženja, preskoči korake 3-4 ──
+    const _art=ArtDB.lookup(cBC);
+    const _rule=_art&&_art.code?DiscRules.lookup(_art.code):null;
+    if(_rule){
+      this._save(true,_rule.days,_rule.pct);
+      return;
+    }
     if(bulkMode){this._save(false,null);}else{this.go(3);}
   },
   // ── Masked date input (PC) ──────────────────────────
@@ -1639,8 +1699,9 @@ const Steps={
   },
   setDiscount(h){if(!h){this._save(false,null);}else{document.getElementById('disc-days').value='';this.go(4);}},
   confirmDays(){const d=document.getElementById('disc-days').value;if(!d){toast('Izaberite broj dana!','err');return;}this._save(true,parseInt(d));},
-    async _save(hd,dd){
+    async _save(hd,dd,pct){
     const dd2=hd?subDays(cDate,dd):null;
+    const isAutoRule=pct!=null&&pct>0;
     // Provera duplikata pre cuvanja
     const dup=items.find(i=>i.barcode===cBC&&i.expiryDate===cDate);
     if(dup){
@@ -1657,10 +1718,14 @@ const Steps={
     const _qIsKg=_qArt?.unit&&_qArt.unit.toLowerCase()==='kg';
     const _qty=_qv?(_qIsKg?parseFloat(_qv):parseInt(_qv)):null;
     const _qtyVal=(_qty!==null&&!isNaN(_qty))?_qty:null;
-    const item={id:uid(),barcode:cBC,expiryDate:cDate,hasDiscount:hd,discountDays:dd,discountDate:dd2,createdAt:new Date().toISOString(),qty:_qtyVal,qtyUpdatedAt:_qtyVal!==null?new Date().toISOString():null};
+    const item={id:uid(),barcode:cBC,expiryDate:cDate,hasDiscount:hd,discountDays:dd,discountDate:dd2,discountPct:isAutoRule?pct:null,createdAt:new Date().toISOString(),qty:_qtyVal,qtyUpdatedAt:_qtyVal!==null?new Date().toISOString():null};
     try{
       await DB.add(session.sid,item);
-      toast('✓ Artikal '+cBC+' sacuvan!','ok');
+      if(isAutoRule){
+        toast('✓ Sačuvano — automatski sniženje '+pct+'% / '+dd+' dana pred istek (izmijeni u listi ako treba)','ok');
+      } else {
+        toast('✓ Artikal '+cBC+' sacuvan!','ok');
+      }
     }catch(e){
       toast('Greška pri čuvanju — proverite vezu i pokušajte ponovo','err');
       // Ukloni optimisticki dodat item
@@ -1766,7 +1831,7 @@ const List={
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">
           <div class="item-dt">${fmtD(item.expiryDate)}</div>
-          ${item.hasDiscount?`<span class="badge badge-d">-${item.discountDays}d</span>`:`<span class="badge badge-n">Bez</span>`}
+          ${item.hasDiscount?`<span class="badge badge-d">-${item.discountDays}d${item.discountPct?` &middot; ${item.discountPct}%`:""}</span>`:`<span class="badge badge-n">Bez</span>`}
           ${item.qty!=null?`<span class="badge badge-qty" onclick="QtyEdit.open('${item.id}',event)">📦 ${item.qty}${artInfo?.unit?" "+artInfo.unit:""}</span>`:`<span class="badge badge-qty-empty" onclick="QtyEdit.open('${item.id}',event)">📦+</span>`}
           ${item.qtyUpdatedAt?`<div style="font-size:.6rem;color:var(--accent);text-align:right;margin-top:1px">↻ ${fmtDT(item.qtyUpdatedAt)}</div>`:''}
         </div>
@@ -1887,6 +1952,7 @@ const Edit={
     document.getElementById('ed-date').value=item.expiryDate;
     document.getElementById('ed-disc').value=item.hasDiscount?'1':'0';
     document.getElementById('ed-days').value=item.discountDays||'5';
+    const _pInp=document.getElementById('ed-pct');if(_pInp)_pInp.value=item.discountPct!=null?item.discountPct:'';
     const cel=document.getElementById('ed-created');
     const cvl=document.getElementById('ed-created-val');
     if(cel&&cvl){
@@ -1900,17 +1966,19 @@ const Edit={
     const _eqU=document.getElementById('ed-qty-unit');if(_eqU)_eqU.textContent=_eqArt?.unit||'';
     if(_eqInp&&_eqArt?.unit)_eqInp.step=_eqArt.unit.toLowerCase()==='kg'?'0.01':'1';
     document.getElementById('edit-overlay').classList.add('open');},
-  togDays(){document.getElementById('ed-drow').classList.toggle('hidden',document.getElementById('ed-disc').value!=='1');},
+  togDays(){const _on=document.getElementById('ed-disc').value==='1';document.getElementById('ed-drow').classList.toggle('hidden',!_on);document.getElementById('ed-prow').classList.toggle('hidden',!_on);},
   async save(){
     const bc=document.getElementById('ed-bc').value.trim(),ed=document.getElementById('ed-date').value;
     if(!bc||!ed){toast('Popunite polja!','err');return;}
     const hd=document.getElementById('ed-disc').value==='1';
     const dd=hd?parseInt(document.getElementById('ed-days').value):null;
+    const _pv=hd?document.getElementById('ed-pct').value.trim():'';
+    const pct=_pv?parseInt(_pv):null;
     const _qv=document.getElementById('ed-qty')?.value.trim();
     const _qArt=ArtDB.lookup(bc);
     const _qIsKg=_qArt?.unit&&_qArt.unit.toLowerCase()==='kg';
     const qty=_qv?(_qIsKg?parseFloat(_qv):parseInt(_qv)):null;
-    await DB.upd(session.sid,this._id,{barcode:bc,expiryDate:ed,hasDiscount:hd,discountDays:dd,discountDate:hd?subDays(ed,dd):null,qty:(qty!==null&&!isNaN(qty))?qty:null,qtyUpdatedAt:new Date().toISOString()});
+    await DB.upd(session.sid,this._id,{barcode:bc,expiryDate:ed,hasDiscount:hd,discountDays:dd,discountDate:hd?subDays(ed,dd):null,discountPct:(pct!==null&&!isNaN(pct))?pct:null,qty:(qty!==null&&!isNaN(qty))?qty:null,qtyUpdatedAt:new Date().toISOString()});
     UI.cl('edit-overlay');toast('✓ Izmjena sačuvana','ok');
   },
   async del(){Confirm.show('Obrisati ovaj artikal?',async()=>{await DB.rm(session.sid,this._id);UI.cl('edit-overlay');toast('Artikal obrisan','ok');},'🗑️ Obriši');}
@@ -2234,6 +2302,175 @@ const CatDB={
       <td>${esc(cat.name||'')}</td>
       <td><button class="btn btn-ghost" style="padding:3px 8px;font-size:.72rem" onclick="CatDB.showEdit('${esc(code)}')">✏️</button>
           <button class="btn" style="padding:3px 8px;font-size:.72rem;background:var(--err-bg);color:var(--err)" onclick="CatDB.deletecat('${esc(code)}')">🗑️</button></td>
+    </tr>`).join('');
+  }
+};
+
+
+/* ===== PRAVILA SNIŽENJA — DiscRules (kljuc: sifra artikla) ===== */
+const DiscRules={
+  _data:{},      // {"002415":{pct:20,days:10}, ...}
+  _loaded:false,
+  _CACHE_KEY:'knjiga-discrules-cache',
+  _editCode:null,
+
+  // Normalizacija šifre — pad na 6 cifara ako je čisto numericka i kraca
+  _norm(code){
+    code=String(code||'').trim();
+    if(/^\d+$/.test(code)&&code.length<6)return code.padStart(6,'0');
+    return code;
+  },
+
+  lookup(code){
+    if(!code)return null;
+    const n=this._norm(code);
+    return this._data[code]||this._data[n]||null;
+  },
+
+  loadCache(){
+    try{
+      const raw=localStorage.getItem(this._CACHE_KEY);
+      if(!raw)return false;
+      const {data,ts}=JSON.parse(raw);
+      if(Date.now()-ts>24*60*60*1000)return false;
+      this._data=data||{};
+      this._loaded=true;
+      return true;
+    }catch(e){return false;}
+  },
+
+  async refresh(silent=false){
+    try{
+      const d=await FBR.get('discountRules');
+      if(d){
+        this._data=d;
+        this._loaded=true;
+        localStorage.setItem(this._CACHE_KEY,JSON.stringify({data:d,ts:Date.now()}));
+      }
+      if(!silent)this._renderTable('');
+    }catch(e){if(!silent)toast('Greška pravila sniženja: '+e.message,'err');}
+  },
+
+  openPanel(){
+    document.getElementById('disc-overlay').classList.add('open');
+    if(!this._loaded)this.refresh();
+    else this._renderTable('');
+  },
+
+  showAdd(){
+    this._editCode=null;
+    document.getElementById('disc-form-title').textContent='Novo pravilo';
+    document.getElementById('disc-code-inp').value='';
+    document.getElementById('disc-code-inp').disabled=false;
+    document.getElementById('disc-pct-inp').value='';
+    document.getElementById('disc-days-inp').value='';
+    document.getElementById('disc-form').style.display='block';
+    document.getElementById('disc-code-inp').focus();
+  },
+
+  showEdit(code){
+    const r=this._data[code];if(!r)return;
+    this._editCode=code;
+    document.getElementById('disc-form-title').textContent='Izmjena: '+code;
+    document.getElementById('disc-code-inp').value=code;
+    document.getElementById('disc-code-inp').disabled=true;
+    document.getElementById('disc-pct-inp').value=r.pct||'';
+    document.getElementById('disc-days-inp').value=r.days||'';
+    document.getElementById('disc-form').style.display='block';
+    document.getElementById('disc-pct-inp').focus();
+  },
+
+  hideForm(){
+    document.getElementById('disc-form').style.display='none';
+    this._editCode=null;
+  },
+
+  async saveForm(){
+    const code=this._norm(document.getElementById('disc-code-inp').value.trim());
+    const pct=parseInt(document.getElementById('disc-pct-inp').value);
+    const days=parseInt(document.getElementById('disc-days-inp').value);
+    if(!code||!pct||!days){toast('Popunite šifru, procenat i broj dana','err');return;}
+    try{
+      await FBR.set('discountRules/'+code,{pct,days});
+      this._data[code]={pct,days};
+      this._loaded=true;
+      localStorage.setItem(this._CACHE_KEY,JSON.stringify({data:this._data,ts:Date.now()}));
+      this.hideForm();
+      this._renderTable('');
+      toast('✓ Pravilo sačuvano','ok');
+    }catch(e){toast('Greška: '+e.message,'err');}
+  },
+
+  async deleteRule(code){
+    if(!confirm('Obrisati pravilo za šifru '+code+'?'))return;
+    try{
+      await FBR.del('discountRules/'+code);
+      delete this._data[code];
+      localStorage.setItem(this._CACHE_KEY,JSON.stringify({data:this._data,ts:Date.now()}));
+      this._renderTable('');
+      toast('✓ Pravilo obrisano','ok');
+    }catch(e){toast('Greška: '+e.message,'err');}
+  },
+
+  triggerImport(){document.getElementById('disc-import-file').click();},
+
+  async importExcel(input){
+    const file=input.files[0];if(!file)return;
+    const status=document.getElementById('disc-import-status');
+    if(status)status.textContent='Učitavam...';
+    try{
+      await ensureXLSX();
+      const buf=await file.arrayBuffer();
+      const wb=XLSX.read(buf,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+      let added=0,updated=0,skipped=0;
+      const keys=rows.length>0?Object.keys(rows[0]):[];
+      const colA=keys[0]||'',colB=keys[1]||'',colC=keys[2]||'';
+      const batch={};
+      rows.forEach(row=>{
+        const rawCode=String(row['šifra artikla']||row['Šifra artikla']||row['Šifra']||row['code']||row[colA]||'').trim();
+        const pct=parseInt(row['procenat sniženja']||row['Procenat sniženja']||row['Procenat']||row['pct']||row[colB]||0);
+        const days=parseInt(row['broj dana pred istek roka za primenu popusta']||row['Broj dana']||row['Dana']||row['days']||row[colC]||0);
+        if(!rawCode||!pct||!days||rawCode===colA){skipped++;return;}
+        const code=this._norm(rawCode);
+        if(this._data[code]){updated++;}else{added++;}
+        batch[code]={pct,days};
+      });
+      const merged={...this._data,...batch};
+      await FBR.set('discountRules',merged);
+      this._data=merged;
+      this._loaded=true;
+      localStorage.setItem(this._CACHE_KEY,JSON.stringify({data:merged,ts:Date.now()}));
+      this._renderTable('');
+      const msg=`✓ Import: ${added} novih, ${updated} ažuriranih, ${skipped} preskočenih`;
+      if(status)status.textContent=msg;
+      toast(msg,'ok');
+    }catch(e){
+      if(status)status.textContent='Greška: '+e.message;
+      toast('Greška: '+e.message,'err');
+    }
+    input.value='';
+  },
+
+  search(q){this._renderTable((q||'').toLowerCase().trim());},
+
+  _renderTable(q){
+    const tbody=document.getElementById('disc-tbody');
+    if(!tbody)return;
+    let entries=Object.entries(this._data);
+    if(q)entries=entries.filter(([code])=>code.toLowerCase().includes(q));
+    entries=entries.sort((a,b)=>a[0].localeCompare(b[0])).slice(0,200);
+    if(!entries.length){
+      tbody.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:16px">Nema pravila</td></tr>';
+      return;
+    }
+    tbody.innerHTML=entries.map(([code,r])=>`<tr>
+      <td><span class="cat-chip">${esc(code)}</span></td>
+      <td style="text-align:center;font-weight:700;color:var(--accent)">${r.pct}%</td>
+      <td style="text-align:center">${r.days} dana</td>
+      <td><button class="btn btn-ghost" style="padding:3px 8px;font-size:.72rem" onclick="DiscRules.showEdit('${esc(code)}')">✏️</button>
+          <button class="btn" style="padding:3px 8px;font-size:.72rem;background:var(--err-bg);color:var(--err)" onclick="DiscRules.deleteRule('${esc(code)}')">🗑️</button></td>
     </tr>`).join('');
   }
 };
@@ -2575,7 +2812,7 @@ const StoreStats={
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0">
               <div class="item-dt">${fmtD(item.expiryDate)}</div>
-              ${item.hasDiscount?`<span class="badge badge-d">-${item.discountDays}d</span>`:`<span class="badge badge-n">Bez</span>`}
+              ${item.hasDiscount?`<span class="badge badge-d">-${item.discountDays}d${item.discountPct?` &middot; ${item.discountPct}%`:""}</span>`:`<span class="badge badge-n">Bez</span>`}
               ${qtyBadge}
               ${qtyUpd}
             </div>
@@ -3864,6 +4101,7 @@ function _resumeSession(){
   // Učitaj bazu artikala iz keša, pa osvježi iz Firebase u pozadini
   ArtDB.loadCache(); // Koristi keš ako postoji (instant)
   CatDB.loadCache(); // Učitaj kategorije
+  DiscRules.loadCache(); // Učitaj pravila sniženja
   // Uvijek osvježi iz Firebase u pozadini (2s delay da se UI učita)
   setTimeout(()=>ArtDB.refreshFromFirebase(true).catch(()=>{}), 2500);
   // PWA Service Worker - samo na GitHub Pages originu
