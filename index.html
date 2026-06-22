@@ -4104,6 +4104,7 @@ function _resumeSession(){
   DiscRules.loadCache(); // Učitaj pravila sniženja
   // Uvijek osvježi iz Firebase u pozadini (2s delay da se UI učita)
   setTimeout(()=>ArtDB.refreshFromFirebase(true).catch(()=>{}), 2500);
+  setTimeout(()=>DiscRules.refresh(true).catch(()=>{}), 2500);
   // PWA Service Worker - samo na GitHub Pages originu
   if('serviceWorker' in navigator && location.hostname.includes('github.io')){
     navigator.serviceWorker.register('/Knjiga-rokova/sw.js')
