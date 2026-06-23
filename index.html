@@ -1566,17 +1566,23 @@ const Steps={
     if(!v){toast('Unesite datum! (dd/mm/yyyy)','err');return;}
     cDate=v;['chip-dt','chip-dt2'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=fmtD(v);});
     // ── Auto-skip: ako šifra artikla ima pravilo sniženja, preskoči korake 3-4 ──
-    // Garantuj da je DiscRules učitan (čeka mrežu max 3s, ne zavisi od tajminga)
+    // Garantuj da je DiscRules učitan (čeka mrežu max 7s, ne zavisi od tajminga)
     if(!DiscRules._loaded){
       try{
-        await Promise.race([
-          DiscRules.refresh(true),
-          new Promise(res=>setTimeout(res,7000))
+        const _winner=await Promise.race([
+          DiscRules.refresh(true).then(()=>'loaded'),
+          new Promise(res=>setTimeout(()=>res('timeout'),7000))
         ]);
-      }catch(e){}
+        toast('🔧 DIAG: DiscRules status='+_winner+', loaded='+DiscRules._loaded+', broj='+Object.keys(DiscRules._data||{}).length,'ok');
+      }catch(e){
+        toast('🔧 DIAG greška: '+e.message,'err');
+      }
+    } else {
+      toast('🔧 DIAG: već učitano, broj='+Object.keys(DiscRules._data||{}).length,'ok');
     }
     const _art=ArtDB.lookup(cBC);
     const _rule=_art&&_art.code?DiscRules.lookup(_art.code):null;
+    toast('🔧 DIAG: art.code='+(_art?_art.code:'NEMA ART')+' rule='+(_rule?JSON.stringify(_rule):'NULL'),'ok');
     if(_rule){
       this._save(true,_rule.days,_rule.pct);
       return;
