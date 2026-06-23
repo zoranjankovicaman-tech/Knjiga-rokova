@@ -1569,20 +1569,14 @@ const Steps={
     // Garantuj da je DiscRules učitan (čeka mrežu max 7s, ne zavisi od tajminga)
     if(!DiscRules._loaded){
       try{
-        const _winner=await Promise.race([
-          DiscRules.refresh(true).then(()=>'loaded'),
-          new Promise(res=>setTimeout(()=>res('timeout'),7000))
+        await Promise.race([
+          DiscRules.refresh(true),
+          new Promise(res=>setTimeout(res,7000))
         ]);
-        toast('🔧 DIAG: DiscRules status='+_winner+', loaded='+DiscRules._loaded+', broj='+Object.keys(DiscRules._data||{}).length,'ok');
-      }catch(e){
-        toast('🔧 DIAG greška: '+e.message,'err');
-      }
-    } else {
-      toast('🔧 DIAG: već učitano, broj='+Object.keys(DiscRules._data||{}).length,'ok');
+      }catch(e){}
     }
     const _art=ArtDB.lookup(cBC);
     const _rule=_art&&_art.code?DiscRules.lookup(_art.code):null;
-    toast('🔧 DIAG: art.code='+(_art?_art.code:'NEMA ART')+' rule='+(_rule?JSON.stringify(_rule):'NULL'),'ok');
     if(_rule){
       this._save(true,_rule.days,_rule.pct);
       return;
@@ -2419,6 +2413,9 @@ const DiscRules={
     if(!code||!pct||!days){toast('Popunite šifru, procenat i broj dana','err');return;}
     try{
       await FBR.set('discountRules/'+code,{pct,days});
+      // Provjeri da je upis stvarno prošao na server (FBR.set ne provjerava HTTP status)
+      const _verify=await FBR.get('discountRules/'+code);
+      if(!_verify){toast('⚠️ Upis nije prihvaćen — provjeri Firebase pravila (discountRules)','err');return;}
       this._data[code]={pct,days};
       this._loaded=true;
       localStorage.setItem(this._CACHE_KEY,JSON.stringify({data:this._data,ts:Date.now()}));
@@ -2466,6 +2463,14 @@ const DiscRules={
       });
       const merged={...this._data,...batch};
       await FBR.set('discountRules',merged);
+      // Provjeri da je upis stvarno prošao na server (FBR.set ne provjerava HTTP status)
+      const _verify=await FBR.get('discountRules');
+      if(!_verify||Object.keys(_verify).length<Object.keys(merged).length){
+        const errMsg='⚠️ Upis NIJE prihvaćen na serveru — provjeri Firebase pravila za "discountRules" čvor';
+        if(status)status.textContent=errMsg;
+        toast(errMsg,'err');
+        return;
+      }
       this._data=merged;
       this._loaded=true;
       localStorage.setItem(this._CACHE_KEY,JSON.stringify({data:merged,ts:Date.now()}));
