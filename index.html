@@ -2075,7 +2075,7 @@ const PDFReport={
             chkPage(8);doc.setFillColor(245,235,218);doc.rect(MG,y,CW,5,'F');
             doc.setTextColor(...TDARK);doc.setFontSize(7.5);doc.setFont('helvetica','bold');
             doc.text((group.catCode!=='BEZ'?group.catCode+' - ':'')+group.catName,MG+2,y+3.4);y+=5;
-            const rows=group.items.map(i=>[i._art?i._art.code:'—',i._art?i._art.name:'Nije u bazi',i._art?(i._art.unit||''):'',String(i.barcode),i.hasDiscount?'Da ('+i.discountDays+'d)':'Ne',i.qty!=null?String(i.qty)+(i._art&&i._art.unit?' '+i._art.unit:''):'—']);
+            const rows=group.items.map(i=>[i._art?i._art.code:'—',i._art?i._art.name:'Nije u bazi',i._art?(i._art.unit||''):'',String(i.barcode),i.hasDiscount?'Da ('+i.discountDays+'d'+(i.discountPct?' · '+i.discountPct+'%':'')+')':'Ne',i.qty!=null?String(i.qty)+(i._art&&i._art.unit?' '+i._art.unit:''):'—']);
             doc.autoTable({startY:y,margin:{left:MG,right:MG},
               head:[['Sifra','Naziv artikla','JME','Barkod','Snizenje','Kol.']],body:rows,
               theme:'plain',styles:{fontSize:7,cellPadding:1.2,textColor:TDARK,lineColor:LBROWN,lineWidth:0.15},
@@ -2094,13 +2094,13 @@ const PDFReport={
             chkPage(8);doc.setFillColor(245,235,218);doc.rect(MG,y,CW,5,'F');
             doc.setTextColor(...TDARK);doc.setFontSize(7.5);doc.setFont('helvetica','bold');
             doc.text((group.catCode!=='BEZ'?group.catCode+' - ':'')+group.catName,MG+2,y+3.4);y+=5;
-            const rows=group.items.map(i=>[i._art?i._art.code:'—',i._art?i._art.name:'Nije u bazi',i._art?(i._art.unit||''):'',String(i.barcode),fmtD(i.discountDate),fmtD(i.expiryDate),i.qty!=null?String(i.qty)+(i._art&&i._art.unit?' '+i._art.unit:''):'—']);
+            const rows=group.items.map(i=>[i._art?i._art.code:'—',i._art?i._art.name:'Nije u bazi',i._art?(i._art.unit||''):'',String(i.barcode),i.discountPct?i.discountPct+'%':'—',fmtD(i.discountDate),fmtD(i.expiryDate),i.qty!=null?String(i.qty)+(i._art&&i._art.unit?' '+i._art.unit:''):'—']);
             doc.autoTable({startY:y,margin:{left:MG,right:MG},
-              head:[['Sifra','Naziv artikla','JME','Barkod','Dat.sniz.','Dat.ist.','Kol.']],body:rows,
+              head:[['Sifra','Naziv artikla','JME','Barkod','%','Dat.sniz.','Dat.ist.','Kol.']],body:rows,
               theme:'plain',styles:{fontSize:7,cellPadding:1.2,textColor:TDARK,lineColor:LBROWN,lineWidth:0.15},
               headStyles:{fillColor:BROWN,textColor:[255,255,255],fontStyle:'bold',fontSize:7},
               alternateRowStyles:{fillColor:CREAM},
-              columnStyles:{0:{cellWidth:15},1:{cellWidth:50},2:{cellWidth:9,halign:'center'},3:{cellWidth:28,font:'courier'},4:{cellWidth:17,halign:'center'},5:{cellWidth:17,halign:'center'},6:{cellWidth:12,halign:'center'}},
+              columnStyles:{0:{cellWidth:14},1:{cellWidth:44},2:{cellWidth:9,halign:'center'},3:{cellWidth:26,font:'courier'},4:{cellWidth:10,halign:'center'},5:{cellWidth:16,halign:'center'},6:{cellWidth:16,halign:'center'},7:{cellWidth:12,halign:'center'}},
               showHead:'everyPage',
               didDrawPage:(data)=>{pageNum++;addHdr();data.settings.margin.top=17;}});
             y=doc.lastAutoTable.finalY+2;
@@ -2146,7 +2146,7 @@ const Export={
     UI.cl('exp-overlay');
     toast(`✓ Izvezeno ${rows.length} artikala`,'ok');
   },
-  async excel(){if(!items.length){toast('Nema podataka!','err');return;}const s=stores.find(x=>x.id===session.sid);await xlsxWrite(['Barkod','Datum isteka','Sniženje','Datum sniženja','Dana'],items.map(i=>[i.barcode,fmtD(i.expiryDate),i.hasDiscount?'Da':'Ne',i.discountDate?fmtD(i.discountDate):'',i.discountDays||'']),`svi_${s?.name||''}_${today()}_(${items.length}art).xlsx`);toast(`✓ Izvezeno ${items.length}`,'ok');},
+  async excel(){if(!items.length){toast('Nema podataka!','err');return;}const s=stores.find(x=>x.id===session.sid);await xlsxWrite(['Barkod','Datum isteka','Sniženje','Procenat','Datum sniženja','Dana','Količina'],items.map(i=>[i.barcode,fmtD(i.expiryDate),i.hasDiscount?'Da':'Ne',i.discountPct!=null?i.discountPct+'%':'',i.discountDate?fmtD(i.discountDate):'',i.discountDays||'',i.qty!=null?i.qty:'']),`svi_${s?.name||''}_${today()}_(${items.length}art).xlsx`);toast(`✓ Izvezeno ${items.length}`,'ok');},
   trigImport(){document.getElementById('imp-file').click();},
   async importJSON(ev){
     const f=ev.target.files[0];if(!f)return;
@@ -3025,14 +3025,14 @@ const ExportCore={
     // Pomoćna funkcija — naziv i šifra iz baze artikala
     const artCol=(bc)=>{const a=ArtDB.lookup(bc);return[a?a.code:'',a?a.name:'Nije u bazi'];};
     if(type==='expiry'){
-      h=multi?['Šifra','Naziv artikla','Prodavnica','Barkod','Datum isteka']:['Šifra','Naziv artikla','Barkod','Datum isteka'];
-      r=allRows.map(i=>{const[code,name]=artCol(i.barcode);return multi?[code,name,i._s,i.barcode,fmtD(i.expiryDate)]:[code,name,i.barcode,fmtD(i.expiryDate)];});
+      h=multi?['Šifra','Naziv artikla','Prodavnica','Barkod','Datum isteka','Sniženje','Procenat','Količina']:['Šifra','Naziv artikla','Barkod','Datum isteka','Sniženje','Procenat','Količina'];
+      r=allRows.map(i=>{const[code,name]=artCol(i.barcode);const disc=i.hasDiscount?'Da':'Ne';const pct=i.discountPct!=null?i.discountPct+'%':'';const qty=i.qty!=null?i.qty:'';return multi?[code,name,i._s,i.barcode,fmtD(i.expiryDate),disc,pct,qty]:[code,name,i.barcode,fmtD(i.expiryDate),disc,pct,qty];});
     } else if(type==='discount'){
-      h=multi?['Šifra','Naziv artikla','Prodavnica','Barkod','Datum sniženja','Datum isteka']:['Šifra','Naziv artikla','Barkod','Datum sniženja','Datum isteka'];
-      r=allRows.map(i=>{const[code,name]=artCol(i.barcode);return multi?[code,name,i._s,i.barcode,fmtD(i.discountDate),fmtD(i.expiryDate)]:[code,name,i.barcode,fmtD(i.discountDate),fmtD(i.expiryDate)];});
+      h=multi?['Šifra','Naziv artikla','Prodavnica','Barkod','Procenat','Datum sniženja','Datum isteka','Količina']:['Šifra','Naziv artikla','Barkod','Procenat','Datum sniženja','Datum isteka','Količina'];
+      r=allRows.map(i=>{const[code,name]=artCol(i.barcode);const pct=i.discountPct!=null?i.discountPct+'%':'';const qty=i.qty!=null?i.qty:'';return multi?[code,name,i._s,i.barcode,pct,fmtD(i.discountDate),fmtD(i.expiryDate),qty]:[code,name,i.barcode,pct,fmtD(i.discountDate),fmtD(i.expiryDate),qty];});
     } else {
-      h=multi?['Šifra','Naziv artikla','Prodavnica','Barkod','Datum isteka','Sniženje']:['Šifra','Naziv artikla','Barkod','Datum isteka','Sniženje'];
-      r=allRows.map(i=>{const[code,name]=artCol(i.barcode);return multi?[code,name,i._s,i.barcode,fmtD(i.expiryDate),i.hasDiscount?'Da':'Ne']:[code,name,i.barcode,fmtD(i.expiryDate),i.hasDiscount?'Da':'Ne'];});
+      h=multi?['Šifra','Naziv artikla','Prodavnica','Barkod','Datum isteka','Sniženje','Procenat','Količina']:['Šifra','Naziv artikla','Barkod','Datum isteka','Sniženje','Procenat','Količina'];
+      r=allRows.map(i=>{const[code,name]=artCol(i.barcode);const disc=i.hasDiscount?'Da':'Ne';const pct=i.discountPct!=null?i.discountPct+'%':'';const qty=i.qty!=null?i.qty:'';return multi?[code,name,i._s,i.barcode,fmtD(i.expiryDate),disc,pct,qty]:[code,name,i.barcode,fmtD(i.expiryDate),disc,pct,qty];});
     }
     return{h,r};
   }
@@ -3335,6 +3335,7 @@ const AdvExport={
           hasDiscount:i.hasDiscount?'Da':'Ne',
           discountDate:i.discountDate?fmtD(i.discountDate):'',
           discountDays:String(i.discountDays||''),
+          discountPct:i.discountPct!=null?i.discountPct:null,
           qty:i.qty!=null?i.qty:null,
           qtyUpdatedAt:i.qtyUpdatedAt||null
         });
@@ -3357,8 +3358,8 @@ const AdvExport={
       if(!res)return;
       const{rows,dateFrom,dateTo,catFilter}=res;
       if(!rows.length){toast('Nema podataka za izabrani period!','err');return;}
-      const hdrs=['Teren','Prodavnica','Šifra','Naziv artikla','JM','Kategorija','Barkod','Datum isteka','Sniženje','Dat.sniženja','Dana','Količina'];
-      const data=rows.map(r=>[r.teren,r.objekat,r.sifra,r.naziv,r.jm,r.kategorija,r.barcode,fmtD(r.expiryDate),r.hasDiscount,r.discountDate,r.discountDays,r.qty!=null?r.qty:'']);
+      const hdrs=['Teren','Prodavnica','Šifra','Naziv artikla','JM','Kategorija','Barkod','Datum isteka','Sniženje','Procenat','Dat.sniženja','Dana','Količina'];
+      const data=rows.map(r=>[r.teren,r.objekat,r.sifra,r.naziv,r.jm,r.kategorija,r.barcode,fmtD(r.expiryDate),r.hasDiscount,r.discountPct!=null?r.discountPct+'%':'',r.discountDate,r.discountDays,r.qty!=null?r.qty:'']);
       const catSufx=catFilter!=='__all__'?'_kat'+catFilter:'';
       await xlsxWrite(hdrs,data,`napredno_${dateFrom}_${dateTo}${catSufx}_(${rows.length}art).xlsx`);
       UI.cl('adv-exp-overlay');
@@ -3546,6 +3547,7 @@ const AdvExport={
       snizenje:document.getElementById('pc-snizenje').checked,
       datsniz: document.getElementById('pc-datsniz').checked,
       dana:    document.getElementById('pc-dana').checked,
+      pct:     document.getElementById('pc-pct')?.checked||false,
       qty:     document.getElementById('pc-qty')?.checked||false,
       qtyupd:  document.getElementById('pc-qtyupd')?.checked||false
     };
@@ -3561,6 +3563,7 @@ const AdvExport={
       {key:'snizenje', label:'Sniženje',     w:14, halign:'center',fn:r=>r.hasDiscount},
       {key:'datsniz',  label:'Dat.sniz.',    w:18, halign:'center',fn:r=>r.discountDate},
       {key:'dana',     label:'Dana',         w:10, halign:'center',fn:r=>r.discountDays},
+      {key:'pct',      label:'%',            w:10, halign:'center',fn:r=>r.discountPct!=null?r.discountPct+'%':''},
       {key:'qty',      label:'Količina',     w:14, halign:'center',fn:r=>r.qty!=null?String(r.qty):''},
       {key:'qtyupd',   label:'Qty ažur.',    w:22, halign:'center',fn:r=>r.qtyUpdatedAt?fmtDT(r.qtyUpdatedAt):'—'}
     ].filter(c=>cols[c.key]);
@@ -3720,6 +3723,7 @@ const FullBackup={
             i.barcode,
             fmtD(i.expiryDate),
             i.hasDiscount?'Da':'Ne',
+            i.discountPct!=null?i.discountPct+'%':'',
             i.discountDate?fmtD(i.discountDate):'',
             i.discountDays||'',
             i.qty!=null?i.qty:''
@@ -3728,7 +3732,7 @@ const FullBackup={
       }
       if(!rows.length){toast('Nema stavki!','err');return;}
       await xlsxWrite(
-        ['Teren','Prodavnica','Šifra','Naziv artikla','JM','Kategorija','Barkod','Datum isteka','Sniženje','Datum sniženja','Dana'],
+        ['Teren','Prodavnica','Šifra','Naziv artikla','JM','Kategorija','Barkod','Datum isteka','Sniženje','Procenat','Dat.sniženja','Dana','Količina'],
         rows,
         'knjiga_rokova_SVE_'+today()+'_('+rows.length+'art).xlsx'
       );
@@ -4248,6 +4252,7 @@ function _resumeSession(){
     <label class="pdf-col-chk"><input type="checkbox" id="pc-snizenje"> Sniženje</label>
     <label class="pdf-col-chk"><input type="checkbox" id="pc-datsniz"> Dat. sniženja</label>
     <label class="pdf-col-chk"><input type="checkbox" id="pc-dana"> Dana sniženja</label>
+    <label class="pdf-col-chk"><input type="checkbox" id="pc-pct" checked> Procenat (%)</label>
     <label class="pdf-col-chk"><input type="checkbox" id="pc-qty" checked> Količina</label>
     <label class="pdf-col-chk"><input type="checkbox" id="pc-qtyupd" checked> Qty ažurirano</label>
   </div>
