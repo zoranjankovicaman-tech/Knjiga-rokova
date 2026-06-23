@@ -1537,6 +1537,18 @@ const Steps={
             _s2rule.style.display='block';
           } else { _s2rule.style.display='none'; }
         }
+        // Ako DiscRules još nije učitan (spora mreža), dopuni preview kad stigne — ne blokira korak 2
+        if(!_rulePrev&&!DiscRules._loaded){
+          DiscRules.refresh(true).then(()=>{
+            if(cBC!==v)return; // korisnik je već prešao na drugi artikal
+            const _r2=_artS2.code?DiscRules.lookup(_artS2.code):null;
+            const _el=document.getElementById('s2-disc-rule');
+            if(_r2&&_el){
+              _el.textContent='\u{1F3F7}\uFE0F Sniženje: '+_r2.pct+'% / '+_r2.days+' dana pred istek (automatski)';
+              _el.style.display='block';
+            }
+          }).catch(()=>{});
+        }
       } else {
         _s2info.style.display='none';
         if(_s2rule)_s2rule.style.display='none';
@@ -1559,7 +1571,7 @@ const Steps={
       try{
         await Promise.race([
           DiscRules.refresh(true),
-          new Promise(res=>setTimeout(res,3000))
+          new Promise(res=>setTimeout(res,7000))
         ]);
       }catch(e){}
     }
