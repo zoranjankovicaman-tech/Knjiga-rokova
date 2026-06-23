@@ -2367,8 +2367,14 @@ const DiscRules={
         this._data=d;
         this._loaded=true;
         localStorage.setItem(this._CACHE_KEY,JSON.stringify({data:d,ts:Date.now()}));
+      } else {
+        this._data={};
       }
-      if(!silent)this._renderTable('');
+      if(!silent){
+        this._renderTable('');
+        const n=Object.keys(this._data).length;
+        toast(n>0?('✓ Učitano '+n+' pravila sa servera'):'⚠️ Server vraća 0 pravila — provjeri da li je upis stvarno prošao','ok');
+      }
     }catch(e){if(!silent)toast('Greška pravila sniženja: '+e.message,'err');}
   },
 
