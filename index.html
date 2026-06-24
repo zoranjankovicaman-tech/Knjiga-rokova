@@ -760,6 +760,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
       <button class="btn btn-primary" onclick="CatDB.showAdd()">+ Dodaj kategoriju</button>
       <button class="btn btn-primary" onclick="CatDB.triggerImport()">&#128229; Import Excel</button>
       <button class="btn btn-ghost" onclick="CatDB.refresh()">&#128260; Osvježi</button>
+      <button class="btn" style="background:var(--err-bg);color:var(--err)" onclick="CatDB.cleanupBadEntries()">🧹 Očisti pogrešne unose</button>
       <input type="file" id="cat-import-file" accept=".xlsx,.xls" style="display:none" onchange="CatDB.importExcel(this)">
     </div>
     <div id="cat-import-status" style="margin-bottom:8px;font-size:.78rem;color:var(--text3);min-height:16px"></div>
@@ -2269,6 +2270,22 @@ const CatDB={
     }catch(e){toast('Greška: '+e.message,'err');}
   },
 
+  // Masovno čišćenje pogrešno uvezenih unosa (npr. šifra+procenat umjesto šifra+naziv)
+  async cleanupBadEntries(){
+    if(!this._loaded)await this.refresh(true);
+    const bad=Object.entries(this._data).filter(([code,cat])=>/^\d+$/.test(cat.name||''));
+    if(!bad.length){toast('Nema pogrešnih unosa — sve kategorije su ispravne ✅','ok');return;}
+    if(!confirm('Pronađeno '+bad.length+' pogrešnih unosa (naziv je čist broj, vjerovatno pogrešno uvezen fajl).\n\nObrisati sve?'))return;
+    toast('Brišem '+bad.length+' unosa...','ok');
+    try{
+      bad.forEach(([code])=>delete this._data[code]);
+      await FBR.set('categories',this._data);
+      localStorage.setItem(this._CACHE_KEY,JSON.stringify({data:this._data,ts:Date.now()}));
+      this._renderTable();
+      toast('✓ Obrisano '+bad.length+' pogrešnih unosa','ok');
+    }catch(e){toast('Greška: '+e.message,'err');}
+  },
+
   triggerImport(){document.getElementById('cat-import-file').click();},
 
   async importExcel(input){
@@ -2290,6 +2307,8 @@ const CatDB={
         const code=String(row['Robna grupa (Kategorija)']||row['Kategorija']||row['Kat']||row['code']||row[colA]||'').trim();
         const name=String(row['Naziv']||row['name']||row[colB]||'').trim();
         if(!code||!name||code===colA){skipped++;return;} // preskoči header red
+        // Sigurnosna provjera: naziv kategorije ne može biti čist broj (znak da je pogrešan fajl, npr. tabela sniženja)
+        if(/^\d+$/.test(name)){skipped++;return;}
         if(this._data[code]){updated++;}else{added++;}
         batch[code]={name};
       });
@@ -2615,14 +2634,19 @@ const ArtDB={
         // Fleksibilno prepoznavanje kolona
         const bc=String(row['EAN Barkod']||row['Barkod']||row['barcode']||'').trim();
         const name=String(row['Naziv artikla']||row['Naziv']||row['name']||'').trim();
-        const code=String(row['Stara šifra artikla']||row['Šifra']||row['code']||'').trim();
+        const code=String(row['Stara šifra artikla']||row['Stara šifra']||row['Šifra']||row['code']||'').trim();
         const unit=String(row['JME']||row['Jed. mere']||row['unit']||'').trim();
         const category=String(row['Kategorija']||row['Kat']||row['category']||'').trim();
         if(!bc||!name){skipped++;return;}
-        if(this._data[bc]){updated++;} else {added++;}
-        const art={name,code};
-        if(unit)art.unit=unit;
-        if(category)art.category=category;
+        const old=this._data[bc];
+        if(old){updated++;} else {added++;}
+        // Ažuriraj samo polja koja imaju vrijednost — ne briši postojeće ako novi red nema podatak
+        const art={
+          name: name||old?.name||'',
+          code: code||old?.code||''
+        };
+        if(unit)art.unit=unit; else if(old?.unit)art.unit=old.unit;
+        if(category)art.category=category; else if(old?.category)art.category=old.category;
         batch[bc]=art;
       });
       // Batch upiši u Firebase
