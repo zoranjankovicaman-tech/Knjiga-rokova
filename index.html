@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Knjiga Rokova — Aman</title>
+<title>Knjiga Rokova — DEMO</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#B86A00">
 <meta name="mobile-web-app-capable" content="yes">
@@ -494,6 +494,10 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 </head>
 <body>
 
+<div id="demo-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#1A1A1A;color:#FFD700;text-align:center;font-size:.78rem;font-weight:700;padding:5px;letter-spacing:.04em">
+  🎬 DEMO VERZIJA — podaci nisu stvarni, samo za prezentaciju
+</div>
+
 <!-- LOADING -->
 <div id="page-loading" class="page active">
 <div class="load-screen">
@@ -511,7 +515,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   <div class="login-logo">
     <div class="ico"><img src="icon-192.png" alt="Knjiga Rokova"></div>
     <h1>Knjiga Rokova</h1>
-    <p>Aman maloprodaja</p>
+    <p>Demo maloprodaja</p>
   </div>
   <div class="role-btns">
     <button class="role-btn" id="rb-super" onclick="Login.setRole('super')">
@@ -688,14 +692,16 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 <!-- SUPER ADMIN -->
 <div id="page-super" class="page">
 <header>
-  <div class="hbrand"><div class="hico">🔐</div><div><div class="htitle">SUPER ADMIN</div><div class="hsub">Aman — Knjiga Rokova</div></div></div>
+  <div class="hbrand"><div class="hico">🔐</div><div><div class="htitle">SUPER ADMIN</div><div class="hsub">DEMO — Knjiga Rokova</div></div></div>
   <div class="hactions">
+    <button class="hbtn" id="btn-demo-reset" style="display:none;background:#1A1A1A;color:#FFD700;border-color:#1A1A1A" onclick="DemoSeed.reset()">🎬 <span>Reset Demo</span></button>
     <button class="hbtn" onclick="CfgMgr.open()">⚙️ <span>Podešavanja</span></button>
     <button class="hbtn" onclick="SuperAdmin.refresh()">🔄 <span>Osveži</span></button>
     <button class="hbtn" id="sa-undo-btn" onclick="Undo.prompt()" style="display:none;background:var(--danger-bg);border-color:var(--danger);color:var(--danger)">↩️ <span>Poništi</span></button>
     <button class="hbtn" onclick="ArtDB.openPanel()">📚 <span>Artikli</span></button>
     <button class="hbtn" onclick="CatDB.openPanel()">🏷️ <span>Kategorije</span></button>
     <button class="hbtn" onclick="DiscRules.openPanel()">💸 <span>Sniženja</span></button>
+    <button class="hbtn" onclick="DiscRules.applyRulesToAll()">⚡ <span>Primeni pravila</span></button>
     <button class="hbtn" onclick="UI.openAdminExport()">📊 <span>Izvoz</span></button>
     <button class="hbtn" onclick="UI.openFullBackup()">🗄️ <span>Backup</span></button>
     <button class="hbtn ico" onclick="UI.toggleTheme()">🌙</button>
@@ -759,7 +765,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
       <button class="btn btn-primary" onclick="CatDB.showAdd()">+ Dodaj kategoriju</button>
       <button class="btn btn-primary" onclick="CatDB.triggerImport()">&#128229; Import Excel</button>
-      <button class="btn btn-ghost" onclick="CatDB.refresh()">&#128260; Osvježi</button>
+      <button class="btn btn-ghost" onclick="CatDB.refresh()">&#128260; Osveži</button>
       <button class="btn" style="background:var(--err-bg);color:var(--err)" onclick="CatDB.cleanupBadEntries()">🧹 Očisti pogrešne unose</button>
       <input type="file" id="cat-import-file" accept=".xlsx,.xls" style="display:none" onchange="CatDB.importExcel(this)">
     </div>
@@ -795,7 +801,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
       <button class="btn btn-primary" onclick="DiscRules.showAdd()">+ Dodaj pravilo</button>
       <button class="btn btn-primary" onclick="DiscRules.triggerImport()">&#128229; Import Excel</button>
-      <button class="btn btn-ghost" onclick="DiscRules.refresh()">&#128260; Osvježi</button>
+      <button class="btn btn-ghost" onclick="DiscRules.refresh()">&#128260; Osveži</button>
       <input type="file" id="disc-import-file" accept=".xlsx,.xls" style="display:none" onchange="DiscRules.importExcel(this)">
     </div>
     <div id="disc-import-status" style="margin-bottom:8px;font-size:.78rem;color:var(--text3);min-height:16px"></div>
@@ -1070,7 +1076,9 @@ async function ensureXLSX(){
 }
 
 /* ===== CONFIG ===== */
-const FB='https://knjiga-rokova-aman-default-rtdb.europe-west1.firebasedatabase.app';
+// ⚠️ DEMO VERZIJA — promeni ovaj URL na demo Firebase projekat
+const FB='https://knjiga-rokova-demo-default-rtdb.europe-west1.firebasedatabase.app';
+const IS_DEMO=FB.includes('demo'); // automatska provjera — sigurnosna kočnica za Reset
 const SA_PIN='22121963'; // 8-cifreni admin PIN
 const SEED=[
   {id:'aman-178',name:'Aman 178',email:'aman178@aman.co.rs',pin:'178'},
@@ -1744,7 +1752,7 @@ const Steps={
     try{
       await DB.add(session.sid,item);
       if(isAutoRule){
-        toast('✓ Sačuvano — automatski sniženje '+pct+'% / '+dd+' dana pred istek (izmijeni u listi ako treba)','ok');
+        toast('✓ Sačuvano — automatski sniženje '+pct+'% / '+dd+' dana pred istek (izmeni u listi ako treba)','ok');
       } else {
         toast('✓ Artikal '+cBC+' sacuvan!','ok');
       }
@@ -2110,7 +2118,7 @@ const PDFReport={
         y+=3;
       });
       doc.setTextColor(...GRAY);doc.setFontSize(7);doc.setFont('helvetica','normal');
-      doc.text('Aman maloprodaja - Knjiga Rokova',PW/2,292,{align:'center'});
+      doc.text('Demo maloprodaja - Knjiga Rokova',PW/2,292,{align:'center'});
       const fn='knjiga_rokova_'+storeName.replace(/\s+/g,'_')+'_'+from+'_'+to+'.pdf';
       doc.save(fn);
       toast('PDF preuzet: '+fn,'ok');
@@ -2348,6 +2356,198 @@ const CatDB={
 
 
 /* ===== PRAVILA SNIŽENJA — DiscRules (kljuc: sifra artikla) ===== */
+
+/* ===== DEMO SEED — Reset & generiši demo podatke (SAMO za demo Firebase projekat) ===== */
+const DemoSeed={
+
+  // Pomoćna: datum danas+N dana u YYYY-MM-DD formatu
+  _d(offset){
+    const dt=new Date();dt.setDate(dt.getDate()+offset);
+    return dt.toISOString().split('T')[0];
+  },
+  _dt(offset,hour,min){
+    const dt=new Date();dt.setDate(dt.getDate()+offset);dt.setHours(hour,min,0,0);
+    return dt.toISOString();
+  },
+
+  // ── Statički demo katalog (terени, objekti, kategorije, artikli, pravila) ──
+  _terrains(){
+    return{
+      'demo-t1':{name:'Demo Teren Sever',pin:'1111',order:1},
+      'demo-t2':{name:'Demo Teren Jug',pin:'2222',order:2}
+    };
+  },
+  _stores(){
+    return{
+      'demo-s1':{name:'Demo Market Centar',email:'centar@demo.rs',pin:'1001',terrainId:'demo-t1'},
+      'demo-s2':{name:'Demo Market Vrnjci',email:'vrnjci@demo.rs',pin:'1002',terrainId:'demo-t1'},
+      'demo-s3':{name:'Demo Market Park',email:'park@demo.rs',pin:'2001',terrainId:'demo-t2'},
+      'demo-s4':{name:'Demo Market Istok',email:'istok@demo.rs',pin:'2002',terrainId:'demo-t2'}
+    };
+  },
+  _categories(){
+    return{
+      '01':{name:'PREHRANA'},
+      '02':{name:'MLEČNI PROIZVODI'},
+      '03':{name:'PIĆA'},
+      '04':{name:'HIGIJENA'},
+      '05':{name:'SLATKIŠI I GRICKALICE'},
+      '06':{name:'MESNE PRERAĐEVINE'}
+    };
+  },
+  // [barcode, code, name, unit, category]
+  _articlesList(){
+    return[
+      ['8600001000010','100101','HLEB BELI 500G','KOM','01'],
+      ['8600001000027','100102','BRAŠNO T-500 1KG','KOM','01'],
+      ['8600001000034','100103','ULJE SUNCOKRETOVO 1L','KOM','01'],
+      ['8600001000041','100104','PIRINAČ DUGOZRNI 1KG','KOM','01'],
+      ['8600001000058','100105','TESTENINA SPAGETI 500G','KOM','01'],
+      ['8600001000065','100106','ŠEĆER BELI 1KG','KOM','01'],
+      ['8600002000011','200201','MLEKO SVEŽE 2.8% 1L','KOM','02'],
+      ['8600002000028','200202','JOGURT PRIRODNI 180G','KOM','02'],
+      ['8600002000035','200203','SIR BELI MEKI 500G','KG','02'],
+      ['8600002000042','200204','KAJMAK DOMAĆI 400G','KOM','02'],
+      ['8600002000059','200205','PAVLAKA 20% 400ML','KOM','02'],
+      ['8600002000066','200206','MASLAC 250G','KOM','02'],
+      ['8600003000012','300301','SOK NARANDŽA 1L','KOM','03'],
+      ['8600003000029','300302','VODA NEGAZIRANA 1.5L','KOM','03'],
+      ['8600003000036','300303','PIVO LAGER 0.5L','KOM','03'],
+      ['8600003000043','300304','KAFA MLEVENA 200G','KOM','03'],
+      ['8600003000050','300305','ČAJ VOĆNI 20X','KOM','03'],
+      ['8600004000013','400401','DETERDŽENT ZA SUĐE 500ML','KOM','04'],
+      ['8600004000020','400402','ŠAMPON ZA KOSU 400ML','KOM','04'],
+      ['8600004000037','400403','SAPUN TEČNI 300ML','KOM','04'],
+      ['8600004000044','400404','PASTA ZA ZUBE 100ML','KOM','04'],
+      ['8600004000051','400405','TOALETNI PAPIR 4X','KOM','04'],
+      ['8600005000014','500501','ČOKOLADA MLEČNA 100G','KOM','05'],
+      ['8600005000021','500502','KEKS PETIT BEURRE 200G','KOM','05'],
+      ['8600005000038','500503','ČIPS SLANI 150G','KOM','05'],
+      ['8600005000045','500504','BOMBONE VOĆNE 1KG','KG','05'],
+      ['8600005000052','500505','VAFLE LEŠNIK 30G','KOM','05'],
+      ['8600006000015','600601','ŠUNKA PILEĆA 1KG','KG','06'],
+      ['8600006000022','600602','KOBASICA DOMAĆA 1KG','KG','06'],
+      ['8600006000039','600603','PEČENICA SVINJSKA 1KG','KG','06'],
+      ['8600006000046','600604','SLANINA SUVA 1KG','KG','06'],
+      ['8600006000053','600605','HRENOVKE 10X 400G','KOM','06']
+    ];
+  },
+  // [code, pct, days]
+  _discountRulesList(){
+    return[
+      ['100103',20,15],['100105',15,10],['200203',25,7],['200205',20,5],
+      ['300303',30,20],['400402',10,30],['500501',20,10],['500503',15,7],
+      ['600601',25,15],['600602',30,10],['600603',20,15],['600604',35,5]
+    ];
+  },
+
+  async _confirmDemo(){
+    if(!IS_DEMO){
+      alert('⛔ ZAŠTITA: Ova funkcija radi SAMO na demo Firebase projektu.\n\nTrenutni FB URL ne sadrži "demo" — reset je blokiran da zaštiti prave podatke.');
+      return false;
+    }
+    return confirm('⚠️ Ovo će OBRISATI sve trenutne podatke u demo bazi i učitati svež demo set.\n\nDa li nastaviti?');
+  },
+
+  async reset(){
+    if(!await this._confirmDemo())return;
+    toast('🎬 Brišem staru demo bazu...','ok');
+    try{
+      // 1) Obriši sve postojeće čvorove (samo demo baza, provjereno gore)
+      await Promise.all([
+        FBR.set('terrains',{}),
+        FBR.set('storeConfig',{}),
+        FBR.set('stores',{}),
+        FBR.set('articles',{}),
+        FBR.set('categories',{}),
+        FBR.set('discountRules',{})
+      ]);
+
+      toast('🎬 Generišem nov demo set...','ok');
+
+      // 2) Osnovni katalozi
+      const terrains=this._terrains();
+      const stores=this._stores();
+      const categories=this._categories();
+      const artList=this._articlesList();
+      const articles={};
+      artList.forEach(([bc,code,name,unit,cat])=>{articles[bc]={name,code,unit,category:cat};});
+      const discRules={};
+      this._discountRulesList().forEach(([code,pct,days])=>{discRules[code]={pct,days};});
+
+      // 3) Generiši stavke (items) — raspoređene po 4 objekta, razni datumi/statusi
+      const storeIds=Object.keys(stores);
+      const stores_items={};
+      storeIds.forEach(sid=>stores_items[sid]={});
+
+      let uidCounter=1;
+      const mkId=()=>'demo_item_'+(uidCounter++);
+
+      // Plan rasporeda: za svaki artikal generiši 2-3 stavke sa raznim danima do isteka
+      const expiryOffsets=[0,1,2,3,5,7,10,15,20,30,45,60,-3,-1]; // neki već isteklI (-3,-1) za ISTEKLO filter
+      let offsetIdx=0;
+
+      artList.forEach(([bc,code,name,unit,cat],artIdx)=>{
+        const rule=discRules[code]||null;
+        // 2 stavke po artiklu, raspoređene na različite objekte
+        for(let n=0;n<2;n++){
+          const sid=storeIds[(artIdx*2+n)%storeIds.length];
+          const offset=expiryOffsets[offsetIdx%expiryOffsets.length];offsetIdx++;
+          const expiryDate=this._d(offset);
+          const createdOffset=-(Math.floor(Math.random()*20)+1);
+          const createdAt=this._dt(createdOffset,Math.floor(Math.random()*10)+8,Math.floor(Math.random()*60));
+
+          let hasDiscount=false,discountDays=null,discountDate=null,discountPct=null;
+          // Ako artikal ima pravilo I rok je blizu (<= rule.days), aktiviraj sniženje
+          if(rule && offset>=0 && offset<=rule.days+5){
+            hasDiscount=true;
+            discountDays=rule.days;
+            discountPct=rule.pct;
+            const dDate=new Date();dDate.setDate(dDate.getDate()+offset-rule.days);
+            discountDate=dDate.toISOString().split('T')[0];
+          }
+
+          // Količina — neki imaju, neki ne (realan miks ~70%)
+          let qty=null,qtyUpdatedAt=null;
+          if(Math.random()<0.7){
+            qty=unit==='KG'?Math.round((Math.random()*20+1)*100)/100:Math.floor(Math.random()*30+1);
+            if(Math.random()<0.5)qtyUpdatedAt=this._dt(-(Math.floor(Math.random()*3)),10,30);
+          }
+
+          const itemId=mkId();
+          stores_items[sid][itemId]={
+            id:itemId,barcode:bc,expiryDate,
+            hasDiscount,discountDays,discountDate,discountPct,
+            qty,qtyUpdatedAt,createdAt
+          };
+        }
+      });
+
+      // 4) Upiši sve u Firebase paralelno
+      await Promise.all([
+        FBR.set('terrains',terrains),
+        FBR.set('storeConfig',stores),
+        FBR.set('stores',Object.fromEntries(storeIds.map(sid=>[sid,{items:stores_items[sid]}]))),
+        FBR.set('articles',articles),
+        FBR.set('categories',categories),
+        FBR.set('discountRules',discRules)
+      ]);
+
+      // 5) Osveži lokalni keš i prikaz
+      localStorage.removeItem('knjiga-art-cache');
+      localStorage.removeItem('knjiga-cat-cache');
+      localStorage.removeItem('knjiga-discrules-cache');
+      ArtDB._loaded=false;CatDB._loaded=false;DiscRules._loaded=false;
+
+      const totalItems=Object.values(stores_items).reduce((s,o)=>s+Object.keys(o).length,0);
+      toast('✅ Demo baza spremna! '+Object.keys(terrains).length+' terena, '+storeIds.length+' objekata, '+artList.length+' artikala, '+totalItems+' stavki','ok');
+    }catch(e){
+      toast('Greška pri seed-u: '+e.message,'err');
+      console.error(e);
+    }
+  }
+};
+
 const DiscRules={
   _data:{},      // {"002415":{pct:20,days:10}, ...}
   _loaded:false,
@@ -2392,7 +2592,7 @@ const DiscRules={
       if(!silent){
         this._renderTable('');
         const n=Object.keys(this._data).length;
-        toast(n>0?('✓ Učitano '+n+' pravila sa servera'):'⚠️ Server vraća 0 pravila — provjeri da li je upis stvarno prošao','ok');
+        toast(n>0?('✓ Učitano '+n+' pravila sa servera'):'⚠️ Server vraća 0 pravila — proveri da li je upis stvarno prošao','ok');
       }
     }catch(e){if(!silent)toast('Greška pravila sniženja: '+e.message,'err');}
   },
@@ -2438,9 +2638,9 @@ const DiscRules={
     if(!code||!pct||!days){toast('Popunite šifru, procenat i broj dana','err');return;}
     try{
       await FBR.set('discountRules/'+code,{pct,days});
-      // Provjeri da je upis stvarno prošao na server (FBR.set ne provjerava HTTP status)
+      // Proveri da je upis stvarno prošao na server (FBR.set ne provjerava HTTP status)
       const _verify=await FBR.get('discountRules/'+code);
-      if(!_verify){toast('⚠️ Upis nije prihvaćen — provjeri Firebase pravila (discountRules)','err');return;}
+      if(!_verify){toast('⚠️ Upis nije prihvaćen — proveri Firebase pravila (discountRules)','err');return;}
       this._data[code]={pct,days};
       this._loaded=true;
       localStorage.setItem(this._CACHE_KEY,JSON.stringify({data:this._data,ts:Date.now()}));
@@ -2488,10 +2688,10 @@ const DiscRules={
       });
       const merged={...this._data,...batch};
       await FBR.set('discountRules',merged);
-      // Provjeri da je upis stvarno prošao na server (FBR.set ne provjerava HTTP status)
+      // Proveri da je upis stvarno prošao na server (FBR.set ne provjerava HTTP status)
       const _verify=await FBR.get('discountRules');
       if(!_verify||Object.keys(_verify).length<Object.keys(merged).length){
-        const errMsg='⚠️ Upis NIJE prihvaćen na serveru — provjeri Firebase pravila za "discountRules" čvor';
+        const errMsg='⚠️ Upis NIJE prihvaćen na serveru — proveri Firebase pravila za "discountRules" čvor';
         if(status)status.textContent=errMsg;
         toast(errMsg,'err');
         return;
@@ -2511,6 +2711,93 @@ const DiscRules={
   },
 
   search(q){this._renderTable((q||'').toLowerCase().trim());},
+
+  async applyRulesToAll(){
+    if(!this._loaded)await this.refresh(true).catch(()=>{});
+    if(!Object.keys(this._data).length){toast('Nema učitanih pravila sniženja!','err');return;}
+
+    // Dijalog — izbor načina primjene
+    const mode=await new Promise(resolve=>{
+      const d=document.createElement('div');
+      d.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px';
+      d.innerHTML=`<div style="background:var(--bg);border-radius:14px;padding:20px;max-width:360px;width:100%">
+        <div style="font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:8px">⚡ Primeni pravila sniženja</div>
+        <p style="font-size:.8rem;color:var(--text2);margin-bottom:14px">Ažurira procenat i broj dana prema trenutnim pravilima po šifri artikla.</p>
+        <button id="_ap1" class="btn btn-primary btn-full" style="margin-bottom:8px">Ažuriraj samo snižene stavke<br><span style="font-size:.7rem;font-weight:400;opacity:.85">samo gdje je hasDiscount=Da</span></button>
+        <button id="_ap2" class="btn btn-full" style="background:var(--warn);color:#fff;margin-bottom:8px">Primeni na sve stavke po pravilima<br><span style="font-size:.7rem;font-weight:400;opacity:.85">i postavi sniženje gdje pravilo postoji</span></button>
+        <button id="_ap0" class="btn btn-ghost btn-full">Otkaži</button>
+      </div>`;
+      document.body.appendChild(d);
+      d.querySelector('#_ap1').onclick=()=>{document.body.removeChild(d);resolve('disc');};
+      d.querySelector('#_ap2').onclick=()=>{document.body.removeChild(d);resolve('all');};
+      d.querySelector('#_ap0').onclick=()=>{document.body.removeChild(d);resolve(null);};
+    });
+    if(!mode)return;
+
+    toast('⚡ Učitavam sve stavke...','ok');
+    let updated=0,skipped=0,storesAffected=new Set();
+
+    try{
+      // Dohvati sve objekte — Super Admin ima adminData
+      const allStores=stores;
+      if(!allStores.length){toast('Nema učitanih objekata','err');return;}
+
+      for(const s of allStores){
+        const sid=s.id;
+        const url=`${FB}/stores/${sid}/items.json`;
+        const res=await fetch(url);
+        if(!res.ok)continue;
+        const raw=await res.json();
+        if(!raw)continue;
+        const storeItems=Object.entries(raw);
+        const patches={};
+
+        for(const [itemId,item] of storeItems){
+          const art=ArtDB.lookup(item.barcode);
+          const code=art?.code||null;
+          if(!code)continue;
+          const rule=this.lookup(code);
+          if(!rule)continue;
+
+          // Proveri da li treba ažurirati
+          const shouldUpdate=mode==='all'
+            ? true                  // sve stavke gdje postoji pravilo
+            : item.hasDiscount===true; // samo već snižene
+
+          if(!shouldUpdate){skipped++;continue;}
+
+          // Proveri da li se nešto stvarno mijenja
+          if(item.discountPct===rule.pct && item.discountDays===rule.days){skipped++;continue;}
+
+          patches[itemId]={
+            hasDiscount:true,
+            discountDays:rule.days,
+            discountPct:rule.pct,
+            discountDate:item.expiryDate?subDays(item.expiryDate,rule.days):null
+          };
+          updated++;
+          storesAffected.add(s.name);
+        }
+
+        if(Object.keys(patches).length){
+          // Batch write za ovaj objekat
+          const patchBody={};
+          Object.entries(patches).forEach(([id,p])=>{
+            Object.entries(p).forEach(([k,v])=>{patchBody[`stores/${sid}/items/${id}/${k}`]=v;});
+          });
+          await fetch(`${FB}/.json?print=silent`,{method:'PATCH',body:JSON.stringify(patchBody)});
+        }
+      }
+
+      const msg=`✅ Ažurirano ${updated} stavki na ${storesAffected.size} objekata · preskočeno ${skipped}`;
+      toast(msg,'ok');
+      // Osveži prikaz
+      if(typeof SuperAdmin!=='undefined'&&SuperAdmin.refresh)SuperAdmin.refresh();
+    }catch(e){
+      toast('Greška pri primjeni pravila: '+e.message,'err');
+      console.error(e);
+    }
+  },
 
   _renderTable(q){
     const tbody=document.getElementById('disc-tbody');
@@ -2688,24 +2975,37 @@ const ArtDB={
     </tr>`).join('');
   },
 
-  // Export neusklađenih barkodova (postoje u rokovima, nema u bazi)
+  // Export neusklađenih barkodova (postoje u rokovima, nema u bazi ILI nedostaje šifra)
   async exportUnmatched(){
     if(!this._loaded){toast('Učitajte bazu artikala prvo','err');return;}
     const allBarcodes=new Set();
     Object.values(adminData).forEach(si=>(si||[]).forEach(i=>i.barcode&&allBarcodes.add(i.barcode)));
-    const unmatched=[...allBarcodes].filter(bc=>!this.lookup(bc));
-    if(!unmatched.length){toast('Svi barkodovi su u bazi ✅','ok');return;}
-    // Napravi Excel
+    // Proveri: nema u bazi ILI nedostaje naziv ILI nedostaje šifra
+    const unmatched=[...allBarcodes].map(bc=>{
+      const art=this.lookup(bc);
+      if(!art)return{bc,missingName:true,missingCode:true,name:'',code:''};
+      const missingName=!art.name||art.name.trim()==='';
+      const missingCode=!art.code||art.code.trim()==='';
+      if(missingName||missingCode)return{bc,missingName,missingCode,name:art.name||'',code:art.code||''};
+      return null;
+    }).filter(Boolean);
+    if(!unmatched.length){toast('Svi barkodovi imaju naziv i šifru ✅','ok');return;}
     await ensureXLSX();
-    const rows=unmatched.map(bc=>({
-      'EAN Barkod':bc,
-      'Naziv artikla':'',
-      'Stara šifra artikla':''
-    }));
-    await xlsxWrite(['EAN Barkod','Naziv artikla','Stara šifra artikla'],
-      rows.map(r=>[r['EAN Barkod'],r['Naziv artikla'],r['Stara šifra artikla']]),
-      `neuskladjeni_barkodovi_${today()}.xlsx`);
-    toast(`✓ Izvezeno ${unmatched.length} neusklađenih barkodova`,'ok');
+    const rows=unmatched.map(r=>[
+      r.bc,
+      r.name,
+      r.code,
+      (!r.name&&!r.code)?'Naziv i šifra':(!r.name?'Naziv':'Šifra')
+    ]);
+    await xlsxWrite(
+      ['EAN Barkod','Naziv artikla','Stara šifra artikla','Nedostaje'],
+      rows,
+      `neuskladjeni_barkodovi_${today()}.xlsx`
+    );
+    const noArt=unmatched.filter(r=>r.missingName&&r.missingCode).length;
+    const noCode=unmatched.filter(r=>!r.missingName&&r.missingCode).length;
+    const noName=unmatched.filter(r=>r.missingName&&!r.missingCode).length;
+    toast(`✓ Izvezeno ${unmatched.length} neusklađenih (${noArt} bez svega, ${noCode} bez šifre, ${noName} bez naziva)`,'ok');
   },
 
   // Prikaži rezultat lookupa ispod barkod polja
@@ -3223,7 +3523,7 @@ const QtyEdit={
     await DB.upd(session.sid,this._id,{qty:(qty!==null&&!isNaN(qty))?qty:null,qtyUpdatedAt:new Date().toISOString()});
     UI.cl('qty-popup');
     toast('✓ Količina ažurirana','ok');
-    // Osvježi DiscQty ako je otvoren
+    // Osveži DiscQty ako je otvoren
     if(document.getElementById('discqty-overlay').classList.contains('open'))DiscQty.open();
   },
   clear(){UI.cl('qty-popup');}
@@ -3684,7 +3984,7 @@ const AdvExport={
       });
       flush();
       doc.setTextColor(...GRAY);doc.setFontSize(6.5);doc.setFont('helvetica','normal');
-      doc.text('Aman maloprodaja — Knjiga Rokova — Ukupno: '+rows.length+' stavki',PW/2,PH-3,{align:'center'});
+      doc.text('Demo maloprodaja — Knjiga Rokova — Ukupno: '+rows.length+' stavki',PW/2,PH-3,{align:'center'});
       const catSufx=catFilter!=='__all__'?'_kat'+catFilter:'';
       const sifraSufx=sifraFilter?'_sif'+sifraFilter:'';
       doc.save('izvoz_super_'+dateFrom+'_'+dateTo+catSufx+sifraSufx+'.pdf');
@@ -4088,7 +4388,7 @@ function sendEmail(store, date, exp, disc, articles, categories) {
   }
 
   body += '</div>';
-  body += '<div class="footer">Aman maloprodaja — Knjiga Rokova &nbsp;|&nbsp; '
+  body += '<div class="footer">Demo maloprodaja — Knjiga Rokova &nbsp;|&nbsp; '
         + exp.length + ' isteka, ' + disc.length + ' sniženja</div>';
 
   const html = '<!DOCTYPE html><html><head><meta charset="UTF-8">'
@@ -4156,7 +4456,7 @@ window.addEventListener('unhandledrejection',e=>{
       new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),12000))
     ]);
   }catch(e){
-    setMsg('Greška veze. Provjerite internet i osvježite stranicu.');
+    setMsg('Greška veze. Proverite internet i osvežite stranicu.');
     return;
   }
   _resumeSession();
@@ -4164,16 +4464,24 @@ window.addEventListener('unhandledrejection',e=>{
 
 function _resumeSession(){
   Undo.loadFromStorage();
-  // Učitaj bazu artikala iz keša, pa osvježi iz Firebase u pozadini
+  // Učitaj bazu artikala iz keša, pa osveži iz Firebase u pozadini
   ArtDB.loadCache(); // Koristi keš ako postoji (instant)
   CatDB.loadCache(); // Učitaj kategorije
   DiscRules.loadCache(); // Učitaj pravila sniženja
-  // Uvijek osvježi iz Firebase u pozadini (2s delay da se UI učita)
+  if(IS_DEMO){
+    const _db=document.getElementById('demo-banner');
+    if(_db){_db.style.display='block';document.body.style.paddingTop='28px';}
+    const _rb=document.getElementById('btn-demo-reset');
+    if(_rb)_rb.style.display='';
+  }
+  // Uvijek osveži iz Firebase u pozadini (2s delay da se UI učita)
   setTimeout(()=>ArtDB.refreshFromFirebase(true).catch(()=>{}), 2500);
   setTimeout(()=>DiscRules.refresh(true).catch(()=>{}), 2500);
   // PWA Service Worker - samo na GitHub Pages originu
   if('serviceWorker' in navigator && location.hostname.includes('github.io')){
-    navigator.serviceWorker.register('/Knjiga-rokova/sw.js')
+    // Dinamička putanja — radi za bilo koji repo (Aman, demo, ili budući klijent) bez izmene koda
+    const swPath=location.pathname.replace(/index\.html$/,'')+'sw.js';
+    navigator.serviceWorker.register(swPath)
       .then(reg=>console.log('[SW] Registrovan, scope:',reg.scope))
       .catch(err=>console.warn('[SW] Registracija neuspela:',err));
   }
@@ -4233,7 +4541,7 @@ function _resumeSession(){
   <div class="modal-title">↩️ Poništi akciju</div>
   <p style="margin-bottom:8px;line-height:1.6">Da li želite da se vratite korak unazad?</p>
   <p id="undo-what" style="font-size:.85rem;font-weight:700;color:var(--danger);margin-bottom:10px"></p>
-  <p style="font-size:.74rem;color:var(--text3);margin-bottom:14px">Vraćaju se konfiguracija terena i objekata. Stavke artikala ostaju nepromijenjene.</p>
+  <p style="font-size:.74rem;color:var(--text3);margin-bottom:14px">Vraćaju se konfiguracija terena i objekata. Stavke artikala ostaju nepromenjene.</p>
   <div class="btn-row">
     <button class="btn btn-primary" style="flex:1" onclick="Undo.restore()">↩️ Da, vrati unazad</button>
     <button class="btn btn-ghost" style="flex:1" onclick="UI.cl('undo-overlay')">Ne, zadrži</button>
