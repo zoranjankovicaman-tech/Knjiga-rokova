@@ -3776,25 +3776,27 @@ const FullBackup={
   async exportJSON(){
     toast('Učitavam sve podatke...');
     try{
-      const[td,sd,stData,artData,catData]=await Promise.all([
+      const[td,sd,stData,artData,catData,discData]=await Promise.all([
         FBR.get('terrains'),FBR.get('storeConfig'),FBR.get('stores'),
-        FBR.get('articles'),FBR.get('categories')
+        FBR.get('articles'),FBR.get('categories'),FBR.get('discountRules')
       ]);
       const bak={
-        version:3,
+        version:4,
         exportDate:new Date().toISOString(),
         terrains:td||{},
         storeConfig:sd||{},
         stores:stData||{},
         articles:artData||{},
-        categories:catData||{}
+        categories:catData||{},
+        discountRules:discData||{}
       };
       const blob=new Blob([JSON.stringify(bak,null,2)],{type:'application/json'});
       const a=document.createElement('a');a.href=URL.createObjectURL(blob);
       a.download='knjiga_rokova_FULL_'+today()+'.json';a.click();
       const artN=Object.keys(artData||{}).length;
       const catN=Object.keys(catData||{}).length;
-      toast('✓ Backup preuzet (artikala: '+artN+', kategorija: '+catN+')','ok');
+      const discN=Object.keys(discData||{}).length;
+      toast('✓ Backup preuzet (artikala: '+artN+', kategorija: '+catN+', pravila sniženja: '+discN+')','ok');
     }catch(e){toast('Greška pri backup-u!','err');console.error(e);}
   },
   async exportExcel(){
@@ -3852,10 +3854,11 @@ const FullBackup={
         const iAll=Object.values(bak.stores||{}).reduce((a,s)=>a+Object.keys(s.items||{}).length,0);
         const artAll=Object.keys(bak.articles||{}).length;
         const catAll=Object.keys(bak.categories||{}).length;
+        const discAll=Object.keys(bak.discountRules||{}).length;
         /* confirm -> Confirm.show — async wrapper */
         await new Promise((resolve,reject)=>{
           Confirm.show(
-            'Osvežiti bazu iz backupa?<br><br>Backup sadrži: <strong>'+tAll+' terena, '+sAll+' objekata, '+iAll+' stavki'+(artAll?', '+artAll+' artikala':'')+(catAll?', '+catAll+' kategorija':'')+'</strong><br><br>Dodaju se samo NOVI zapisi. Postojeći podaci se zadržavaju.',
+            'Osvežiti bazu iz backupa?<br><br>Backup sadrži: <strong>'+tAll+' terena, '+sAll+' objekata, '+iAll+' stavki'+(artAll?', '+artAll+' artikala':'')+(catAll?', '+catAll+' kategorija':'')+(discAll?', '+discAll+' pravila sniženja':'')+'</strong><br><br>Dodaju se samo NOVI zapisi. Postojeći podaci se zadržavaju.',
             resolve,
             '📥 Uvezi'
           );
@@ -3864,7 +3867,7 @@ const FullBackup={
         toast('Osvežavam bazu...');
         const existTids=new Set(terrains.map(t=>t.id));
         const existSids=new Set(stores.map(s=>s.id));
-        const newT={},newS={};let addedT=0,addedS=0,addedI=0,addedArt=0,addedCat=0;
+        const newT={},newS={};let addedT=0,addedS=0,addedI=0,addedArt=0,addedCat=0,addedDisc=0;
         for(const[id,data]of Object.entries(bak.terrains||{})){if(!existTids.has(id)){newT[id]=data;addedT++;}}
         for(const[id,data]of Object.entries(bak.storeConfig||{})){if(!existSids.has(id)){newS[id]=data;addedS++;}}
         for(const[sid,sdata]of Object.entries(bak.stores||{})){
@@ -3887,6 +3890,13 @@ const FullBackup={
           for(const[code,data]of Object.entries(bak.categories||{})){if(!existCat[code]){newCat[code]=data;addedCat++;}}
           if(addedCat>0){await FBR.patch('categories',newCat);if(CatDB._loaded)Object.assign(CatDB._data,newCat);}
         }
+        // Uvezi pravila sniženja — samo nove šifre
+        if(discAll){
+          const existDisc=DiscRules._loaded?DiscRules._data:(await FBR.get('discountRules')||{});
+          const newDisc={};
+          for(const[code,data]of Object.entries(bak.discountRules||{})){if(!existDisc[code]){newDisc[code]=data;addedDisc++;}}
+          if(addedDisc>0){await FBR.patch('discountRules',newDisc);if(DiscRules._loaded)Object.assign(DiscRules._data,newDisc);}
+        }
         const ops=[];
         if(addedT>0)ops.push(FBR.patch('terrains',newT));
         if(addedS>0)ops.push(FBR.patch('storeConfig',newS));
@@ -3897,6 +3907,7 @@ const FullBackup={
         let msg='✓ Osveženo: +'+addedT+' terena, +'+addedS+' objekata, +'+addedI+' stavki';
         if(addedArt>0)msg+=', +'+addedArt+' artikala';
         if(addedCat>0)msg+=', +'+addedCat+' kategorija';
+        if(addedDisc>0)msg+=', +'+addedDisc+' pravila sniženja';
         toast(msg,'ok');
       }catch(ex){toast('Greška pri uvozu!','err');console.error(ex);}
     };
