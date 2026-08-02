@@ -697,6 +697,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
     <button class="hbtn" onclick="CatDB.openPanel()">🏷️ <span>Kategorije</span></button>
     <button class="hbtn" onclick="DiscRules.openPanel()">💸 <span>Sniženja</span></button>
     <button class="hbtn" onclick="DiscRules.applyRulesToAll()">⚡ <span>Primeni pravila</span></button>
+    <button class="hbtn" style="color:var(--danger);border-color:var(--danger)" onclick="SuperAdmin.cleanExpired()">🧹 <span>Očisti istekle</span></button>
     <button class="hbtn" onclick="UI.openAdminExport()">📊 <span>Izvoz</span></button>
     <button class="hbtn" onclick="UI.openFullBackup()">🗄️ <span>Backup</span></button>
     <button class="hbtn ico" onclick="UI.toggleTheme()">🌙</button>
@@ -2835,6 +2836,45 @@ const ArtDB={
 
 /* ===== SUPER ADMIN ===== */
 const SuperAdmin={
+  async cleanExpired(){
+    const cut=subDays(today(),30);
+    if(!confirm(`🧹 Brisanje isteklih stavki\n\nBrisaće se sve stavke kojima je rok istekao pre više od 30 dana (pre ${cut.split('-').reverse().join('.')}).\n\nOvo radi kroz SVE objekte na svim terenima.\n\nNastaviti?`))return;
+
+    toast('🧹 Učitavam stavke svih objekata...','ok');
+    let totalDeleted=0,storesAffected=0;
+
+    try{
+      const allStores=stores;
+      if(!allStores.length){toast('Nema učitanih objekata','err');return;}
+
+      for(const s of allStores){
+        const url=`${FB}/stores/${s.id}/items.json`;
+        const res=await fetch(url);
+        if(!res.ok)continue;
+        const raw=await res.json();
+        if(!raw)continue;
+
+        const toDelete=Object.entries(raw)
+          .filter(([,item])=>item.expiryDate&&item.expiryDate<=cut);
+
+        if(!toDelete.length)continue;
+
+        await Promise.all(toDelete.map(([id])=>
+          fetch(`${FB}/stores/${s.id}/items/${id}.json`,{method:'DELETE'})
+        ));
+
+        totalDeleted+=toDelete.length;
+        storesAffected++;
+      }
+
+      toast(`✅ Obrisano ${totalDeleted} isteklih stavki sa ${storesAffected} objekata`,'ok');
+      if(totalDeleted>0)SuperAdmin.load();
+    }catch(e){
+      toast('Greška: '+e.message,'err');
+      console.error(e);
+    }
+  },
+
   async load(){
     document.getElementById('sa-grid').innerHTML='<div class="empty-state"><div class="spinner"></div></div>';
     adminData={};
