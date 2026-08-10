@@ -697,7 +697,8 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
     <button class="hbtn" onclick="CatDB.openPanel()">🏷️ <span>Kategorije</span></button>
     <button class="hbtn" onclick="DiscRules.openPanel()">💸 <span>Sniženja</span></button>
     <button class="hbtn" onclick="DiscRules.applyRulesToAll()">⚡ <span>Primeni pravila</span></button>
-    <button class="hbtn" style="color:var(--danger);border-color:var(--danger)" onclick="SuperAdmin.cleanExpired()">🧹 <span>Očisti istekle</span></button>
+    <button class="hbtn" onclick="SuperAdmin.fixDiscountDates()" style="color:var(--warn)">📅 <span>Popravi datume</span></button>
+    <button class="hbtn" onclick="SuperAdmin.cleanExpired()" style="color:var(--danger)">🧹 <span>Očisti istekle</span></button>
     <button class="hbtn" onclick="UI.openAdminExport()">📊 <span>Izvoz</span></button>
     <button class="hbtn" onclick="UI.openFullBackup()">🗄️ <span>Backup</span></button>
     <button class="hbtn ico" onclick="UI.toggleTheme()">🌙</button>
@@ -2836,6 +2837,49 @@ const ArtDB={
 
 /* ===== SUPER ADMIN ===== */
 const SuperAdmin={
+  // Korak 1 — jednokratna korekcija: artikli sa discountDate u prošlosti → pomera na sutra
+  async fixDiscountDates(){
+    const tomorrow=subDays(today(),-1);
+    const todayStr=today();
+    if(!confirm(`📅 Korekcija datuma sniženja\n\nZa sve stavke gde je:\n• hasDiscount = Da\n• discountDate je već u prošlosti\n• expiryDate je u budućnosti\n\n→ discountDate se pomera na SUTRA (${tomorrow.split('-').reverse().join('.')}) da bi se pojavili u sledećem jutarnjem mejlu.\n\nNastaviti?`))return;
+
+    toast('📅 Proveravam stavke svih objekata...','ok');
+    let fixed=0,storesAffected=new Set();
+
+    try{
+      for(const s of stores){
+        const url=`${FB}/stores/${s.id}/items.json`;
+        const res=await fetch(url);
+        if(!res.ok)continue;
+        const raw=await res.json();
+        if(!raw)continue;
+
+        const patch={};
+        Object.entries(raw).forEach(([id,item])=>{
+          if(!item.hasDiscount)return;                    // nema sniženje — preskoči
+          if(!item.discountDate||item.discountDate>todayStr)return; // datum ok ili nije unet
+          if(!item.expiryDate||item.expiryDate<=todayStr)return;    // već isteklo — ne diraj
+          // discountDate je u prošlosti, artikal još nije istekao → pomeri na sutra
+          patch[`stores/${s.id}/items/${id}/discountDate`]=tomorrow;
+          fixed++;
+          storesAffected.add(s.name);
+        });
+
+        if(Object.keys(patch).length){
+          await fetch(`${FB}/.json?print=silent`,{
+            method:'PATCH',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify(patch)
+          });
+        }
+      }
+      toast(`✅ Korigovano ${fixed} stavki na ${storesAffected.size} objekata — pojaviće se u sledećem jutarnjem mejlu`,'ok');
+    }catch(e){
+      toast('Greška: '+e.message,'err');
+      console.error(e);
+    }
+  },
+
   async cleanExpired(){
     const cut=subDays(today(),30);
     if(!confirm(`🧹 Brisanje isteklih stavki\n\nBrisaće se sve stavke kojima je rok istekao pre više od 30 dana (pre ${cut.split('-').reverse().join('.')}).\n\nOvo radi kroz SVE objekte na svim terenima.\n\nNastaviti?`))return;
