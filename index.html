@@ -304,9 +304,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   /* PLU dugme — vidljivo samo na PC */
   #plu-btn{display:flex;}
 
-  /* Datum unos — PC verzija (dd/mm/yyyy), mobilna skrivena */
-  .mobile-date{display:none;}
-  .pc-date{display:block!important;}
+  /* Datum unos — unified masked input (dd.mm.yyyy) */
 
   /* Veći input u wizardu na PC */
   #wizard-card input[type="text"],#wizard-card input[type="date"]{font-size:1rem;padding:11px 14px;}
@@ -618,20 +616,20 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
       </div>
       <div class="step-label">Korak 2 — Datum isteka roka</div>
       <div class="date-input-wrap" style="margin-bottom:10px">
-          <!-- Mobilni: nativni calendar picker -->
-          <input type="date" id="exp-date" class="mobile-date"
-                 onchange="Steps._syncPCDate(this.value)">
-          <!-- PC: text input dd/mm/yyyy + calendar dugme -->
-          <div class="pc-date" style="display:none;position:relative">
-            <input type="text" id="exp-date-pc" placeholder="dd/mm/yyyy" maxlength="10"
-                   inputmode="numeric" autocomplete="off" style="padding-right:40px;letter-spacing:.08em"
+          <!-- Skriveni native date input — čuva ISO vrednost i otvara kalendar -->
+          <input type="date" id="exp-date" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px"
+                 onchange="Steps.onCalendarPick(this.value)">
+          <!-- Unified: maskirani unos dd.mm.yyyy + dugme za kalendar -->
+          <div style="position:relative">
+            <input type="text" id="exp-date-pc" placeholder="dd.mm.yyyy" maxlength="10"
+                   inputmode="numeric" autocomplete="off"
+                   style="padding-right:44px;letter-spacing:.12em;width:100%;box-sizing:border-box"
                    onfocus="Steps.pcFocus(this)"
                    onkeydown="Steps.pcKey(this,event)"
-                   readonly>
+                   onbeforeinput="Steps.pcBeforeInput(event)"
+                   onclick="Steps.pcFocus(this)">
             <button onclick="Steps.openCalendar()" tabindex="-1"
-                    style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.1rem;padding:4px;color:var(--accent)" title="Otvori kalendar">📅</button>
-            <input type="date" id="exp-date-cal" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;top:0;right:0"
-                   onchange="Steps.onCalendarPick(this.value)">
+                    style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.25rem;padding:4px;color:var(--accent)" title="Otvori kalendar">📅</button>
           </div>
         </div>
       <div class="frow" id="s2-qty-row" style="margin:6px 0 8px"><label class="flbl" style="display:flex;align-items:center;gap:6px">📦 Količina <span style="font-weight:400;color:var(--text3);font-size:.72rem">(opciono)</span></label><div style="display:flex;align-items:center;gap:8px"><input type="number" id="qty-input" min="0" placeholder="—" inputmode="decimal" style="width:110px;font-size:1rem;font-weight:700;text-align:center" onkeydown="if(event.key==='Enter')Steps.confirmDate()"><span id="qty-unit-lbl" style="font-size:.82rem;font-weight:700;color:var(--accent);min-width:32px"></span></div></div>
@@ -655,8 +653,8 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   <div class="stats">
     <div class="stat-box"><div class="stat-n" id="sn-total">0</div><div class="stat-lbl">Ukupno</div></div>
     <div class="stat-box" onclick="DiscQty.open()" style="cursor:pointer" title="Klikni za pregled sniženih količina"><div class="stat-n" id="sn-disc" style="color:var(--warn)">0</div><div class="stat-lbl">Sa snižnjem</div><div id="sn-disc-qty" style="font-size:.62rem;color:var(--text3);margin-top:2px;min-height:13px"></div></div>
-    <div class="stat-box"><div class="stat-n" id="sn-today" style="color:var(--danger)">0</div><div class="stat-lbl">Ističe danas</div></div>
-    <div class="stat-box" title="Artikli koji ističu sutra">
+    <div class="stat-box" onclick="List.filter('today',document.getElementById('fbtn-today'))" style="cursor:pointer" title="Klikni za filter: ističe danas"><div class="stat-n" id="sn-today" style="color:var(--danger)">0</div><div class="stat-lbl">Ističe danas</div></div>
+    <div class="stat-box" onclick="List.filter('tmr',document.getElementById('fbtn-tmr'))" style="cursor:pointer" title="Klikni za filter: ističe sutra">
       <div class="stat-n" id="sn-tmr" style="color:var(--accent)">0</div>
       <div class="stat-lbl">Sutra</div>
     </div>
@@ -678,8 +676,11 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
       <button class="fbtn on" id="fbtn-all" onclick="List.filter('all',this)">Sve</button>
       <button class="fbtn" id="fbtn-discount" onclick="List.filter('discount',this)">Sniženje</button>
       <button class="fbtn" id="fbtn-today" onclick="List.filter('today',this)">Ističe danas</button>
+      <button class="fbtn" id="fbtn-tmr" onclick="List.filter('tmr',this)">Sutra</button>
       <button class="fbtn" id="fbtn-expired" onclick="List.filter('expired',this)">Isteklo</button>
+      <button class="fbtn" id="fbtn-stats" onclick="List.filter('stats',this)">📊 Statistika</button>
     </div>
+    <div id="store-stats-panel" style="display:none;padding:8px 0"></div>
     <div class="list-wrap" id="items-list"></div>
   </div>
 </div>
@@ -1487,13 +1488,9 @@ const Steps={
     setTimeout(()=>{
       if(n===1){const i=document.getElementById('bc-input');if(i)i.focus();}
       if(n===2){
-      const pcInp=document.getElementById('exp-date-pc');
-      const natInp=document.getElementById('exp-date');
-      if(window.innerWidth>=900&&pcInp){
-        // Inituj masked input sa trenutnim datumom pa fokusiraj
-        setTimeout(()=>{pcInp.focus();},130);
-      } else if(natInp){natInp.focus();}
-    }
+        const pcInp=document.getElementById('exp-date-pc');
+        if(pcInp){setTimeout(()=>{Steps._pcInitSeg();pcInp.focus();},130);}
+      }
     },120);
   },
   _pluActive:false,
@@ -1598,7 +1595,12 @@ const Steps={
   async confirmDate(){
     // Na PC čita iz native input koji je sinhronizovan sa PC text inputom
     const v=document.getElementById('exp-date').value;
-    if(!v){toast('Unesite datum! (dd/mm/yyyy)','err');return;}
+    if(!v){toast('Unesite datum! (dd.mm.yyyy)','err');return;}
+    // Validacija: ne dozvoliti datum u prošlosti
+    if(v<today()){toast('⚠️ Datum je u prošlosti! Proverite unos.','err');return;}
+    // Validacija: ne dozvoliti rok duži od 2 godine
+    const maxISO=(()=>{const t=today().split('-');return (parseInt(t[0])+2)+'-'+t[1]+'-'+t[2];})();
+    if(v>maxISO){toast('⚠️ Ne unose se rokovi duži od 2 godine!','err');return;}
     cDate=v;['chip-dt','chip-dt2'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=fmtD(v);});
     // ── Auto-skip: ako šifra artikla ima pravilo sniženja, preskoči korake 3-4 ──
     // Garantuj da je DiscRules učitan (čeka mrežu max 7s, ne zavisi od tajminga)
@@ -1630,7 +1632,7 @@ const Steps={
   _pcRefresh(){
     const inp=document.getElementById('exp-date-pc');if(!inp)return;
     const dd=this._pcD||'dd',mm=this._pcM||'mm',yyyy=this._pcY||'yyyy';
-    inp.value=`${dd}/${mm}/${yyyy}`;
+    inp.value=`${dd}.${mm}.${yyyy}`;
     const ranges=[[0,2],[3,5],[6,10]];
     const [s,e]=ranges[Math.min(this._pcS,2)];
     setTimeout(()=>{try{inp.setSelectionRange(s,e);}catch(x){}},0);
@@ -1665,7 +1667,7 @@ const Steps={
 
   _pcRefresh(){
     const inp=document.getElementById('exp-date-pc');if(!inp)return;
-    inp.value=`${this._pcD||'dd'}/${this._pcM||'mm'}/${this._pcY||'yyyy'}`;
+    inp.value=`${this._pcD||'dd'}.${this._pcM||'mm'}.${this._pcY||'yyyy'}`;
     const pos=[[0,2],[3,5],[6,10]][Math.min(this._pcS,2)];
     setTimeout(()=>{try{inp.setSelectionRange(...pos);}catch(x){}},0);
   },
@@ -1681,15 +1683,37 @@ const Steps={
 
   pcFocus(){this._pcS=0;this._pcBuf='';this._pcRefresh();},
 
+  _pcKeyHandled:false,
+
   pcKey(inp,e){
     if(e.key==='Enter'){e.preventDefault();Steps.confirmDate();return;}
     if(e.key==='Tab'){if(this._pcS<2){e.preventDefault();this._pcNextSeg();}return;}
-    e.preventDefault();
-    const maxLen=[2,2,4];
+    // Samo za tastere koji menjaju sadržaj — označi da smo obradili (da pcBeforeInput ne duplira)
+    if(/^[0-9]$/.test(e.key)||e.key==='Backspace'||e.key==='/'||e.key==='.'||e.key==='ArrowRight'||e.key==='ArrowLeft'){
+      e.preventDefault();
+      this._pcKeyHandled=true;
+    } else {return;}
+    this._pcHandleKey(e.key);
+  },
 
-    if(/^[0-9]$/.test(e.key)){
-      this._pcBuf+=e.key;
-      // Prikaži buf padovan do dužine segmenta
+  pcBeforeInput(e){
+    e.preventDefault();
+    // Na PC — keydown je već obradio, preskočiti
+    if(this._pcKeyHandled){this._pcKeyHandled=false;return;}
+    // Na mobilnom — keydown ne pali, obradi ovdje
+    if(e.inputType==='insertText'&&e.data){
+      for(const ch of e.data){if(/^[0-9]$/.test(ch))this._pcHandleKey(ch);}
+    } else if(e.inputType==='deleteContentBackward'){
+      this._pcHandleKey('Backspace');
+    }
+    // Nakon obrade — restore selectionRange (browser je resetovao)
+    this._pcRefresh();
+  },
+
+  _pcHandleKey(key){
+    const maxLen=[2,2,4];
+    if(/^[0-9]$/.test(key)){
+      this._pcBuf+=key;
       const shown=this._pcBuf+(this._pcBuf.length<maxLen[this._pcS]?
         (['dd','mm','yyyy'][this._pcS].slice(this._pcBuf.length)):'');
       this._pcSetSeg(shown.slice(0,maxLen[this._pcS]));
@@ -1699,19 +1723,18 @@ const Steps={
         this._pcNextSeg();
         this._pcSync();
       }
-    } else if(e.key==='Backspace'){
+    } else if(key==='Backspace'){
       if(this._pcBuf.length>0){
         this._pcBuf=this._pcBuf.slice(0,-1);
         const orig=['dd','mm','yyyy'][this._pcS];
-        const shown=this._pcBuf+orig.slice(this._pcBuf.length);
-        this._pcSetSeg(shown);
+        this._pcSetSeg(this._pcBuf+orig.slice(this._pcBuf.length));
       } else if(this._pcS>0){
         this._pcS--;this._pcBuf='';
       }
       this._pcRefresh();
-    } else if(e.key==='/'||e.key==='.'||e.key==='ArrowRight'){
+    } else if(key==='/'||key==='.'||key==='ArrowRight'){
       this._pcNextSeg();
-    } else if(e.key==='ArrowLeft'){
+    } else if(key==='ArrowLeft'){
       if(this._pcS>0){this._pcS--;this._pcBuf='';}this._pcRefresh();
     }
   },
@@ -1733,26 +1756,23 @@ const Steps={
     else{const pc=document.getElementById('exp-date-pc');if(pc)pc.value='';}
   },
   openCalendar(){
-    const cal=document.getElementById('exp-date-cal');
-    if(!cal)return;
-    // Postavi trenutnu vrijednost ako postoji
     const native=document.getElementById('exp-date');
-    if(native&&native.value)cal.value=native.value;
-    cal.showPicker?.();
-    // Fallback: klikni na hidden input
-    if(!cal.showPicker)cal.click();
+    if(!native)return;
+    if(native.showPicker){try{native.showPicker();}catch(x){native.click();}}
+    else native.click();
   },
   onCalendarPick(isoDate){
     if(!isoDate)return;
     // Ažuriraj native input
     const native=document.getElementById('exp-date');
     if(native)native.value=isoDate;
-    // Ažuriraj PC text input
-    this._syncPCDate(isoDate);
-    // Fokusiraj PC input i označi zeleno
+    // Ažuriraj maskirani text input
+    this.initPCDate(isoDate);
+    // Fokusiraj text input i označi zeleno
     const pc=document.getElementById('exp-date-pc');
-    if(pc){pc.focus();pc.style.borderColor='var(--success)';setTimeout(()=>pc.style.borderColor='',1000);}
+    if(pc){pc.focus();pc.style.borderColor='var(--success)';setTimeout(()=>pc.style.borderColor='',1200);}
   },
+  _pcInitSeg(){this.initPCDate(document.getElementById('exp-date')?.value||'');},
   setDiscount(h){if(!h){this._save(false,null);}else{document.getElementById('disc-days').value='';this.go(4);}},
   confirmDays(){const d=document.getElementById('disc-days').value;if(!d){toast('Izaberite broj dana!','err');return;}this._save(true,parseInt(d));},
     async _save(hd,dd,pct){
@@ -1832,13 +1852,25 @@ const List={
         List.render(); // rerenderuj sa nazivima
       }).catch(()=>{ArtDB._rendering=false;});
     }
-    const t=today();let data=[...items];
+    // Stats panel toggle
+    const statsPanel=document.getElementById('store-stats-panel');
+    const listEl=document.getElementById('items-list');
+    if(this._f==='stats'){
+      if(statsPanel){statsPanel.style.display='block';StoreStatsLocal.render();}
+      if(listEl)listEl.style.display='none';
+      return;
+    } else {
+      if(statsPanel)statsPanel.style.display='none';
+      if(listEl)listEl.style.display='';
+    }
+    const t=today();const tmr=tomorrow();let data=[...items];
     // Datum filter ima prioritet nad tipskim filterom
     if(this._d){
       data=data.filter(i=>i.expiryDate===this._d||(i.hasDiscount&&i.discountDate===this._d));
     } else {
       if(this._f==='discount')data=data.filter(i=>i.hasDiscount);
       else if(this._f==='today')data=data.filter(i=>i.expiryDate===t);
+      else if(this._f==='tmr')data=data.filter(i=>i.expiryDate===tmr);
       else if(this._f==='expired')data=data.filter(i=>i.expiryDate<t);
     }
     // Filter po pretrazi
@@ -3109,6 +3141,33 @@ const StoreStats={
     document.getElementById('_tab_stats').classList.toggle('on',t==='stats');
     document.getElementById('_panel_list').classList.toggle('hidden',t!=='list');
     document.getElementById('_panel_stats').classList.toggle('hidden',t!=='stats');
+  }
+};
+
+/* ===== STORE STATS LOCAL (prikaz na nivou objekta) ===== */
+const StoreStatsLocal={
+  render(){
+    const panel=document.getElementById('store-stats-panel');
+    if(!panel)return;
+    const t=today();
+    const daily=StoreStats.getDailyStats(items);
+    const total15=daily.reduce((s,d)=>s+d.count,0);
+    const activeDays=daily.filter(d=>d.count>0).length;
+    const maxDay=daily.reduce((a,b)=>b.count>a.count?b:a,{count:0,date:''});
+    const todN=items.filter(i=>i.expiryDate===t).length;
+    const expN=items.filter(i=>i.expiryDate<t).length;
+    const tmrN=items.filter(i=>i.expiryDate===tomorrow()).length;
+    panel.innerHTML=`
+      <div class="chart-summary" style="margin-bottom:8px">
+        <span class="chart-chip${total15===0?' zero':''}">📥 ${total15} unosa / 15 dana</span>
+        <span class="chart-chip${activeDays===0?' zero':''}">📆 ${activeDays} aktivnih dana</span>
+        ${maxDay.count>0?`<span class="chart-chip">🏆 Max: ${maxDay.count} (${fmtD(maxDay.date)})</span>`:''}
+        ${todN>0?`<span class="chart-chip" style="background:var(--danger-bg);color:var(--danger);border-color:var(--danger)">🟠 ${todN} ističe danas</span>`:''}
+        ${tmrN>0?`<span class="chart-chip" style="background:var(--warn-bg);color:var(--warn);border-color:var(--warn)">🕐 ${tmrN} ističe sutra</span>`:''}
+        ${expN>0?`<span class="chart-chip" style="background:var(--danger-bg);color:var(--danger);border-color:var(--danger)">🔴 ${expN} isteklo</span>`:''}
+      </div>
+      <div class="chart-wrap">${StoreStats.renderChart(daily)}</div>
+      <div class="chart-lbl">Broj unosa po danu — poslednjih 15 dana</div>`;
   }
 };
 
